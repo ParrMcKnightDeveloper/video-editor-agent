@@ -63,6 +63,10 @@ recorded or screencast, cut into 3–6s clips. Key gotchas:
 
 ## Lane C — Screen Studio / real-browser recording (highest fidelity, or when automation is blocked)
 
+**Mac only — needs the user's own display and recorder.** In a cloud session (Claude Code on
+the web) use Lanes A/B, or ask the user to record on their machine and share the file via
+SharePoint/OneDrive (`video-edit-pipeline/references/sharepoint-media.md`).
+
 Some sites (Cloudflare and friends) **block kiosk/fresh-profile Chrome outright**.
 The proven fallback: record the user's REAL logged-in browser.
 

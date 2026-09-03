@@ -18,6 +18,8 @@ analysis/
 # Dependencies / OS noise
 node_modules/
 .DS_Store
+# ffmpeg/ffprobe PATH shims created by scripts/ffmpeg-env.sh (point at node_modules)
+.bin/
 
 __pycache__/
 *.pyc

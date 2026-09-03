@@ -55,19 +55,29 @@ footage + (optional) reference reel + brand/site + ratio
 [7] (optional) capcut-export ──→ CapCut draft for a human's final pass
 ```
 
-## Quickstart
+## Quickstart — from Claude Code on the web (nothing installed on your machine)
 
-1. Clone this repo and open it in Claude Code.
+1. Open this repo in a Claude Code environment at claude.ai/code. The SessionStart hook
+   installs the bundled ffmpeg/ffprobe and the QA engine and prints the setup checklist.
+2. In the environment's settings, add the keys as secrets: `ELEVENLABS_API_KEY` (sound,
+   required), `AI_GATEWAY_API_KEY` (Vercel AI Gateway — every LLM/whisper call, no OpenAI
+   or Gemini keys) and `KIE_API_KEY` (kie.ai generated footage). Allowlist the hosts listed
+   in **[SETUP.md § Cloud](SETUP.md)**.
+3. Put your footage in SharePoint or OneDrive and paste the sharing link into the chat:
+   **"edit this like `<reference reel>`"** — or just "edit this video". The
+   `video-edit-pipeline` skill fetches the file, edits, QAs, and hands back a review-page
+   link (and, if you want, pushes the master back to the library).
+
+## Quickstart — on your own machine
+
+1. Clone this repo, `npm run setup` (bundled ffmpeg + QA engine), open it in Claude Code.
 2. Work through **[SETUP.md](SETUP.md)** (or run `bash scripts/check-setup.sh`) —
    it lists every tool and API with a check + fix for each. No MCP servers needed.
-3. Copy `.env.example` to `.env` and paste your keys: `ELEVENLABS_API_KEY` (sound),
-   `AI_GATEWAY_API_KEY` (Vercel AI Gateway — every LLM/whisper call, no OpenAI or Gemini
-   keys needed) and `KIE_API_KEY` (kie.ai generated footage). Only ElevenLabs is required.
+3. Copy `.env.example` to `.env` and paste the same three keys. Only ElevenLabs is required.
 4. Copy `MASTER_CONTEXT.template.md` to `MASTER_CONTEXT.md` and fill in your brand,
    defaults and **projects directory** (where the videos live — default `outputs/`).
-5. Drop your raw footage into the projects directory (or `footage/`) and say:
-   **"edit this like `<reference reel>`"** — or just "edit this video". The
-   `video-edit-pipeline` skill takes it from there.
+5. Drop your raw footage into the projects directory (or `footage/`) and say
+   "edit this video".
 
 ## Using it from your own working repo
 
@@ -91,7 +101,8 @@ and point it at this pack instead of copying skills into it:
 | Dependency | Why | Install / notes |
 |---|---|---|
 | Node.js >= 20 | HyperFrames, the QA engine, the scripts | nodejs.org |
-| ffmpeg / ffprobe | every probe, extract, crop, mux | `brew install ffmpeg` (or your package manager) — no libass/drawtext needed |
+| ffmpeg / ffprobe | every probe, extract, crop, mux | **bundled**: `npm install` at the root pulls static builds (`ffmpeg-static`, `ffprobe-static`); `scripts/ffmpeg-env.sh` wires the paths — no brew/apt, no libass/drawtext needed |
+| SharePoint / OneDrive (cloud sessions) | footage in, masters out | sharing links + `video-edit-pipeline/scripts/fetch_media.py`; `MS_GRAPH_TOKEN` only for org-only links and pushes |
 | HyperFrames | composition + rendering engine | `npx hyperframes`; then `npx hyperframes skills update talking-head-recut` (pulls fonts + gsap) |
 | whisper (bundled route) | word-level transcription | `npx hyperframes transcribe` manages whisper.cpp models; `whisper-cli` + a ggml model unlocks the VAD-driven cut planners |
 | python3 | helper scripts | PIL (`pip install pillow`) for overlays; numpy + scipy for `ai-audio-sound-design` |
@@ -103,8 +114,8 @@ and point it at this pack instead of copying skills into it:
 | Screen Studio (optional) | high-fidelity real-browser B-roll (`broll-capture` Lane C) | any screen recorder works; Screen Studio + its CLI is the polished path |
 | OpenArt MCP (optional) | AI-generated B-roll / talking heads / overlays (`openart-broll`) | connect the OpenArt MCP in your client; verify with `openart_account_get` — no API key |
 | kie.ai (optional) | generated B-roll, overlays and stills (`kie-broll`), also the clip source for `multicam-demo-edit` | `KIE_API_KEY` in `.env`; `python3 .claude/skills/kie-broll/scripts/kie_gen.py preflight` |
-| Swift toolchain (optional) | `hook-variations`' AVFoundation probe (`avtest`) | Xcode command-line tools; built on first use |
-| pyJianYingDraft in a venv (optional) | CapCut draft export | only needed for the capcut-export handoff |
+| Swift toolchain (optional, **Mac only**) | `hook-variations`' AVFoundation probe (`avtest`) | Xcode command-line tools; built on first use; skipped with a note in cloud sessions |
+| pyJianYingDraft in a venv (optional, **Mac only**) | CapCut draft export | only needed for the capcut-export handoff; not available in cloud sessions |
 
 External dependencies are documented, not vendored — nothing in this repo ships a copy of
 HyperFrames, whisper models, or ffmpeg.

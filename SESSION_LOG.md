@@ -31,7 +31,36 @@ Gateway** key for every LLM/whisper call instead of separate OpenAI and Gemini k
 - Setup surface: `.env.example`, SETUP.md (§5, §8, §10b), `check-setup.sh` (flags stale
   GEMINI/OPENAI/ARCADS keys), README, ARCHITECTURE, CLAUDE.md, MASTER_CONTEXT template.
 
+**Same day, second pass — cloud-first: nothing installed on anyone's machine**
+
+**Decision (the user):** other people must be able to open this repo from claude.ai/code and
+use it; media lives in SharePoint / OneDrive.
+
+- **ffmpeg/ffprobe are npm dependencies now** (root `package.json`: `ffmpeg-static`,
+  `ffprobe-static` — static builds verified to carry libx264, aac, ebur128, loudnorm,
+  silencedetect, blackdetect, freezedetect). `scripts/ffmpeg-env.sh` resolves env → bundled →
+  PATH, exports the four variables every script already reads, and adds a `.bin/` PATH shim
+  for bare `ffmpeg` calls. The QA engine's resolver checks the bundled build before Homebrew.
+  `check-setup.sh` counts the bundled build as PASS and reads keys from the environment first.
+- **SessionStart hook** (`.claude/hooks/session-start.sh`, registered in `.claude/settings.json`,
+  remote-only): npm installs, ffmpeg env into `CLAUDE_ENV_FILE`, best-effort pillow/numpy/scipy,
+  HyperFrames warm-up, MASTER_CONTEXT from the template, checklist. Synchronous on purpose.
+- **SharePoint/OneDrive bridge**: `video-edit-pipeline/scripts/fetch_media.py` — `fetch` a sharing
+  link (download=1 for SharePoint links, public shares API for OneDrive personal, Graph shares
+  API when `MS_GRAPH_TOKEN` is set), ffprobe-verify, refuse HTML sign-in pages; `push` a master
+  through a Graph upload session in 10 MiB chunks (+ optional view link). Documented in
+  `references/sharepoint-media.md`; Stage 0 and Stage 5 of the pipeline point at it. The
+  connector's own upload caps at 1 MB, so it is for text artefacts only.
+- Mac-only lanes flagged in place (hook-variations probe, broll-capture Lane C, capcut-export).
+  SETUP.md gained a "Cloud / shared environment" section with the network allowlist.
+
+**Lesson kept:** in the setup sandbox `apt` was blocked but the npm registry and GitHub
+releases were not — package the binary as a dependency instead of documenting an install.
+
 **Open until the first live run**
+- `fetch_media.py` routes are built from Microsoft's documented link forms; the first fetch of
+  a real org link (with and without a token) is the proof. The Graph upload session is
+  documented behaviour, not yet exercised from this pack.
 - The gateway's acceptance of a `video/mp4` file part on a Gemini model is documented behaviour for
   file input, not yet exercised from this pack (the sandbox could not reach the gateway or kie.ai).
   First real `qa:video` run with a key is the proof; the layer degrades to `skipped` if rejected.

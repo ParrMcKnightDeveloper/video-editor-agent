@@ -31,7 +31,10 @@ a current CapCut build. Treat the last mile as debugging work, not a guaranteed 
 ## Prerequisites
 
 - macOS with CapCut desktop installed (drafts live in
-  `~/Movies/CapCut/User Data/Projects/com.lveditor.draft/`).
+  `~/Movies/CapCut/User Data/Projects/com.lveditor.draft/`). **Mac only**: this skill
+  cannot run in a cloud session — the draft has to be written on the machine that runs
+  CapCut. In cloud mode, hand the human editor the layered render passes via SharePoint
+  instead.
 - `python3` with **pyJianYingDraft in a venv** (`pip install pyJianYingDraft`). Do not
   install globally; the library moves fast and its API varies between versions.
 - `ffmpeg` on PATH (or `FFMPEG` env var) — used to split the cards render pass and grab

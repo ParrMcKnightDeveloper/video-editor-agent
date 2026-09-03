@@ -50,8 +50,13 @@ Collect before anything else:
 
 1. **Footage** — path(s) to the raw file(s). Expect them in the **projects
    directory** named in `MASTER_CONTEXT.md` (or `footage/` in a standalone setup) —
-   never move media into this pack. Run `ffprobe` on every file immediately:
-   resolution, fps, duration, audio channels. Do not assume; probe.
+   never move media into this pack. **In a cloud session (Claude Code on the web) the
+   footage arrives as a SharePoint / OneDrive sharing link**: fetch it into
+   `outputs/<slug>/` with `scripts/fetch_media.py` (see
+   [references/sharepoint-media.md](references/sharepoint-media.md)); the script
+   ffprobes the download and refuses anything that is not media. Either way, run
+   `ffprobe` on every file immediately: resolution, fps, duration, audio channels.
+   Do not assume; probe.
 2. **Optional reference reel** — a file or URL of an edit whose style should
    be cloned. If present, Stage 1 is mandatory.
 3. **Brand / site** — brand name, website URL, logo, palette if known. Check
@@ -160,6 +165,12 @@ Invoke **video-review-canvas** to publish the video to a here.now review page
 **LEAD with the canvas URL** — first line of the reply, before any summary of
 what was done. Reviewers click the link; they do not read the recap first.
 
+In a cloud session the container disappears with the session, so also **push the
+master to the team's SharePoint library** when `MASTER_CONTEXT.md` names one
+(`scripts/fetch_media.py push … --link organization`, needs `MS_GRAPH_TOKEN`; details in
+[references/sharepoint-media.md](references/sharepoint-media.md)) and put that link
+under the canvas URL. New version = new file there too.
+
 ## Stage 6 — Revision rounds
 
 When the reviewer leaves notes (or the user relays them):
@@ -227,7 +238,8 @@ draft opens before telling the user it is ready.
 | Generated B-roll / overlays / stills (kie.ai API) | kie-broll |
 | One long recording of many hooks → one tightened video per hook (+ gallery canvas) | hook-splitter |
 | AI-actor footage: ambience, room reverb, bleeps, watermark whine, loudness master | ai-audio-sound-design |
-| Layered export to a CapCut draft | capcut-export |
+| Layered export to a CapCut draft (Mac only) | capcut-export |
+| Footage in / renders out of a cloud session via SharePoint or OneDrive | `scripts/fetch_media.py` + `references/sharepoint-media.md` |
 
 ## Culture rules (apply at every stage)
 

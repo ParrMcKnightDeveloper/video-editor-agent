@@ -19,6 +19,52 @@ Puppeteer script covers the same ground without one — and `openart-broll` uses
 
 ---
 
+## Cloud / shared environment (Claude Code on the web) — nothing installed on anyone's machine
+
+This pack is meant to be opened from **claude.ai/code** by any team member, not run from one
+person's laptop. Three things make that work:
+
+1. **A SessionStart hook does the installs.** `.claude/hooks/session-start.sh` (registered in
+   `.claude/settings.json`) runs when a web session opens: `npm install` at the root pulls the
+   **bundled ffmpeg/ffprobe** (`ffmpeg-static` / `ffprobe-static` — Linux, macOS, Windows
+   builds, no apt or brew), installs the QA engine, exports `FFMPEG` / `FFPROBE` (+ `_PATH`)
+   into the session, best-effort installs the python libs, warms the HyperFrames CLI, and
+   prints this checklist. It only runs in remote sessions (`CLAUDE_CODE_REMOTE=true`); on a
+   laptop `npm run setup` does the same by hand. Once the hook is on the default branch every
+   new session gets it.
+2. **Keys are environment variables, not a file.** In the environment's settings on
+   claude.ai/code add `ELEVENLABS_API_KEY`, `AI_GATEWAY_API_KEY`, `KIE_API_KEY` (and
+   `MS_GRAPH_TOKEN` when a SharePoint push is planned) as secrets. Every script reads the
+   environment first and `.env` second, so `.env` is only for a personal machine. here.now
+   credentials work the same way (`HERENOW_*` per the here-now skill) instead of
+   `~/.herenow/credentials`.
+3. **Media comes and goes through SharePoint / OneDrive.** Footage arrives as a sharing link
+   and is fetched into `outputs/<slug>/` with
+   `.claude/skills/video-edit-pipeline/scripts/fetch_media.py fetch "<link>" --dest outputs/<slug>`;
+   the finished cut goes to the review canvas and, optionally, back to the library with
+   `fetch_media.py push`. Details, limits and the token story:
+   `video-edit-pipeline/references/sharepoint-media.md`.
+
+**Network allowlist for the environment** (Organization settings → Capabilities → Code
+execution, or the environment's policy): `registry.npmjs.org`, `github.com` +
+`objects.githubusercontent.com` (the ffmpeg-static binary download), `pypi.org` +
+`files.pythonhosted.org`, `ai-gateway.vercel.sh`, `api.elevenlabs.io`, `api.kie.ai` +
+`tempfile.aiquickdraw.com` + `kieai.redpandaai.co`, `here.now`, `*.sharepoint.com` +
+`graph.microsoft.com` + `1drv.ms` + `api.onedrive.com`. Allowlist changes apply to **new**
+sessions only.
+
+**What stays Mac-only** (say so in the report rather than failing): `hook-variations`'
+AVFoundation probe, `broll-capture` Lane C (Screen Studio), `capcut-export`. Everything on
+the main path — transcribe, compose, render, sound, QA, canvas — runs in the container.
+
+**MASTER_CONTEXT.md in cloud mode.** It is gitignored, so a fresh container starts from the
+template (the hook copies it). Keep the team's filled-in copy in the SharePoint library and
+read it in with the connector at intake, or — if this fork stays private to the team —
+commit it and remove the `.gitignore` line. Your call; the file holds brand and reviewer
+preferences, not secrets.
+
+---
+
 ## Required — the pipeline does not run without these
 
 ### 0. MASTER_CONTEXT.md + the projects directory
@@ -39,13 +85,18 @@ Runs HyperFrames, the caption generator, and the sound-design scripts.
 - CHECK: `node -v` → v20 or newer; `npx --version` prints a version.
 - FIX: install from https://nodejs.org or `brew install node`.
 
-### 2. ffmpeg + ffprobe
+### 2. ffmpeg + ffprobe (bundled — no install)
 
-Every crop, EDL cut, audio measurement, frame extraction, and QA check.
+Every crop, EDL cut, audio measurement, frame extraction, and QA check. The pack ships them
+as npm dependencies (`ffmpeg-static`, `ffprobe-static`: static builds with libx264, aac,
+ebur128, loudnorm and the detection filters), so nothing is installed on the machine.
 
-- CHECK: `ffmpeg -version | head -1` and `ffprobe -version | head -1`.
-- FIX: `brew install ffmpeg` (macOS) / your package manager. Any recent build works;
-  the skills avoid libass/drawtext on purpose, so no special build flags are needed.
+- CHECK: `eval "$(bash scripts/ffmpeg-env.sh)" && ffmpeg -version | head -1`.
+- FIX: `npm install` at the pack root (the SessionStart hook does this in cloud sessions).
+  `scripts/ffmpeg-env.sh` exports `FFMPEG` / `FFPROBE` / `FFMPEG_PATH` / `FFPROBE_PATH` and
+  prepends a PATH shim, so every script — python, bash, node — uses the same binary. An
+  explicit `FFMPEG` / `FFPROBE` env var always wins if you prefer a system build. The skills
+  avoid libass/drawtext on purpose, so no special build is needed.
 
 ### 3. HyperFrames (HTML→video renderer)
 
@@ -57,15 +108,15 @@ Installed on demand by npx — no global install.
   `gsap.min.js` the composition templates expect.
 - Optional speedup: render with `PRODUCER_BROWSER_GPU_MODE=hardware`.
 
-### 4. ELEVENLABS_API_KEY (`.env`)
+### 4. ELEVENLABS_API_KEY (env var, or `.env` on a personal machine)
 
 Sound design: SFX generation (`/v1/sound-generation`) and music beds (`/v1/music`).
 
-- CHECK: `grep -c "^ELEVENLABS_API_KEY=.\+" .env` → 1.
-- FIX: `cp .env.example .env`, paste your key from https://elevenlabs.io
-  (Profile → API Keys). The scripts read it from `.env` / the environment; it is
-  never hardcoded. Generation spends ElevenLabs credits — the agent announces
-  before spending.
+- CHECK: `test -n "$ELEVENLABS_API_KEY" || grep -c "^ELEVENLABS_API_KEY=.\+" .env` → set.
+- FIX: cloud — add it as a secret in the environment settings on claude.ai/code; laptop —
+  `cp .env.example .env` and paste the key from https://elevenlabs.io (Profile → API
+  Keys). The scripts read the environment first, then `.env`; it is never hardcoded.
+  Generation spends ElevenLabs credits — the agent announces before spending.
 
 ### 5. Transcription (bundled — verify once)
 

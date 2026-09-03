@@ -12,8 +12,12 @@ every real edit without ever carrying the edit's private details.
 ## Repo layout
 
 ```
+.claude/settings.json      # registers the SessionStart hook
+.claude/hooks/session-start.sh   # cloud sessions: npm installs, ffmpeg env, python libs, checklist
 .claude/skills/            # the skills (each: SKILL.md + references/ scripts/ assets/)
   video-edit-pipeline/     # MASTER orchestrator — start here; routes to everything below
+    scripts/fetch_media.py #   SharePoint/OneDrive ↔ container: fetch a sharing link, push a master
+    references/sharepoint-media.md  # the cloud media flow, limits, token story
   branded-ad-edit/         # raw talking head → branded motion-graphics ad (HyperFrames)
   reel-recut/              # spec-driven creator reel: banner, karaoke captions, callouts, silence cuts
   reel-style-clone/        # reference reel → STYLE-GUIDE.md + build directives
@@ -37,7 +41,9 @@ tools/video-qa/            # the QA ENGINE: a standalone node package (tsx/zod),
   src/                     #   layer1-technical, layer2-transcript, layer3-semantic, inspect, report,
                            #   manifest/{schema,adapter-hyperframes}, transcribe, gateway, cache, env
   src/__tests__/           #   node:test suite; ffmpeg + macOS `say` fixtures generate on first run
+package.json               # root: ONLY the bundled ffmpeg-static / ffprobe-static (+ `npm run setup`)
 scripts/
+  ffmpeg-env.sh            # resolves ffmpeg/ffprobe (env → bundled → PATH), exports vars + PATH shim
   check-setup.sh           # dependency checklist (mirrors SETUP.md)
   scrub-check.sh           # public-repo hygiene gate (secrets, paths, names, media)
   scrub-denylist.example.txt   # copy → scrub-denylist.local.txt (gitignored) with your own names
@@ -86,6 +92,15 @@ enforced, and skips cleanly without `AI_GATEWAY_API_KEY`; transcription uses whi
 tools/video-qa run qa:check` verifies the key and model ids; `npm --prefix tools/video-qa
 test` runs the suite (a clean canary + a real mid-word-cut fixture).
 
+## Cloud mode (Claude Code on the web)
+
+The pack is built to be opened from claude.ai/code by anyone on the team with nothing on
+their machine: the SessionStart hook installs the bundled ffmpeg and the QA engine; keys are
+environment secrets; footage arrives as a SharePoint/OneDrive link and is fetched into
+`outputs/<slug>/` in the container; the cut ships on the review canvas and optionally back
+to the library. Mac-only lanes (AVFoundation probe, Screen Studio capture, CapCut export)
+report themselves as unavailable rather than failing. SETUP.md § Cloud has the allowlist.
+
 ## Working-folder mode and the projects directory
 
 A user's videos usually live in their own working repo, not here. The pattern:
@@ -106,9 +121,14 @@ A user's videos usually live in their own working repo, not here. The pattern:
 - **HyperFrames** — composition + render engine: `npx hyperframes`, plus
   `npx hyperframes skills update talking-head-recut` for fonts/gsap; `npx hyperframes
   transcribe` is the default whisper.cpp route.
-- **ffmpeg / ffprobe** — all probing, extraction, cropping, muxing. Scripts read `FFMPEG` /
-  `FFPROBE` (or `FFMPEG_PATH` / `FFPROBE_PATH` for the engine), then PATH, then the Homebrew
-  location. No libass/drawtext needed anywhere — text goes through PIL PNGs or HTML.
+- **ffmpeg / ffprobe** — all probing, extraction, cropping, muxing. **Bundled** through the
+  root `package.json` (`ffmpeg-static`, `ffprobe-static`), so no machine install; scripts
+  read `FFMPEG` / `FFPROBE` (or `FFMPEG_PATH` / `FFPROBE_PATH`), then the bundled build,
+  then PATH / Homebrew. `scripts/ffmpeg-env.sh` exports the paths and a PATH shim. No
+  libass/drawtext needed anywhere — text goes through PIL PNGs or HTML.
+- **SharePoint / OneDrive** — the team's media home for cloud sessions. Sharing links in,
+  Graph upload sessions out (`fetch_media.py`; `MS_GRAPH_TOKEN` for org-only links and
+  pushes). The Microsoft 365 connector covers lookups and sub-1 MB text artefacts.
 - **whisper-cli + ggml models** — word-level transcription and VAD for the cut planners
   (`WHISPER_CLI`, `WHISPER_MODEL`, `VAD_BIN`, `VAD_MODEL`).
 - **node >= 20**, **python3** (+ PIL; numpy/scipy for `ai-audio-sound-design`).

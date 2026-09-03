@@ -5,11 +5,15 @@ generic about how a finished short-form video gets made lives in `.claude/skills
 `tools/`; everything personal (brand, machine paths, reviewer habits, clients) lives in the
 gitignored `MASTER_CONTEXT.md`. The two never mix.
 
-## First session on a new machine
+## First session on a new machine or in a fresh cloud container
 
-0. Run `bash scripts/check-setup.sh`. Any FAIL: walk **SETUP.md** with the user before
-   starting an edit — every stage's tools and APIs are listed there with check + fix
-   commands. (No MCP servers are required by this pack.)
+0. Run `bash scripts/check-setup.sh` (in a Claude Code on the web session the SessionStart
+   hook already ran it and installed the bundled ffmpeg + QA engine). Any FAIL: walk
+   **SETUP.md** with the user before starting an edit — every stage's tools and APIs are
+   listed there with check + fix commands. (No MCP servers are required by this pack; the
+   Microsoft 365 connector is a convenience for SharePoint lookups.) ffmpeg/ffprobe come
+   from `npm install` — never tell a user to brew/apt install them; run
+   `eval "$(bash scripts/ffmpeg-env.sh)"` if a shell lacks the paths.
 
 ## Every session
 
@@ -26,6 +30,12 @@ gitignored `MASTER_CONTEXT.md`. The two never mix.
    source, transcripts, comp, renders, `review/`, `_qa/`) go in the projects directory named
    in MASTER_CONTEXT.md — default `outputs/` here, but often a media folder in the user's own
    working repo. `footage/` and `outputs/` are gitignored conveniences, not a rule.
+   **In a cloud session** the projects directory is `outputs/` in the container: footage
+   arrives as a SharePoint/OneDrive sharing link (fetch it with
+   `video-edit-pipeline/scripts/fetch_media.py`, which ffprobes the download), the cut is
+   delivered on the review canvas and, when the team library is named in MASTER_CONTEXT.md,
+   pushed back there too. The container is gone at session end — never promise a file that
+   only exists in it.
 
 ## Working-folder mode (a session started in another repo)
 

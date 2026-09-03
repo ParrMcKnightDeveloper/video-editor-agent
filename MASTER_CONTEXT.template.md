@@ -43,6 +43,9 @@ empty fields get offered for population as work reveals the answers.
   `<projects dir>/<project-slug>/` and never move media into this pack)
 - **Per-project layout conventions:** (e.g. `source.mp4`, `output-vN.mp4`, `review/`, `_qa/`)
 - **Raw footage queue(s):** (where new recordings land)
+- **SharePoint / OneDrive library for media** (cloud sessions): (site + library name, the
+  `driveId` and the folder `itemId` for finished masters — from the Microsoft 365 connector;
+  whether sharing links are org-only, which means `MS_GRAPH_TOKEN` is needed to fetch)
 - **Named past edits** (for "edit it like X" requests): (slug → what it was)
 
 ## Hard rules (the regimes this reviewer holds you to)

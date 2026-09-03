@@ -68,7 +68,8 @@ Writes the variants plus `variants.json` (the manifest every later step reads).
 ### 3. Verify — the step that is not optional
 
 ```bash
-swiftc -O scripts/avtest.swift -o scripts/avtest     # once per machine
+swiftc -O scripts/avtest.swift -o scripts/avtest     # once per machine — macOS only (AVFoundation);
+                                                    # in a Linux/cloud session skip this probe and say so in the report
 python3 scripts/verify_variants.py --body <cut.mp4> --hooks <hooks/> --out <variants/>
 ```
 
