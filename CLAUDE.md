@@ -60,13 +60,15 @@ current). In that mode:
 ## Costs and dependencies
 
 - Every generation-adjacent step has a cost or external dependency: ElevenLabs calls
-  (SFX/music/ambience) spend API credits; Gemini QA calls spend API credits; OpenArt /
-  Arcads generation spends their credits; here.now publishing needs credentials. Say what a
-  step will cost/require BEFORE running it, and document any newly discovered cost or
-  dependency in MASTER_CONTEXT.md (or README.md if it is a hard prerequisite).
+  (SFX/music/ambience) spend API credits; video-qa's L3 and any cloud whisper call bill the
+  Vercel AI Gateway key; kie.ai generation spends prepaid kie credits (no quote endpoint —
+  read the model page price and say it); OpenArt generation spends OpenArt credits; here.now
+  publishing needs credentials. Say what a step will cost/require BEFORE running it, and
+  document any newly discovered cost or dependency in MASTER_CONTEXT.md (or README.md if it
+  is a hard prerequisite).
 - API keys live in `.env` at the repo root (or the invoking working repo's `.env`):
-  `ELEVENLABS_API_KEY`, optional `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ARCADS_*`. Never
-  hardcode a key in a script or commit one.
+  `ELEVENLABS_API_KEY`, optional `AI_GATEWAY_API_KEY` (all LLM/whisper traffic — never call
+  OpenAI or Google directly) and `KIE_API_KEY`. Never hardcode a key in a script or commit one.
 
 ## Working style — verify in pixels
 

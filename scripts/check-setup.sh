@@ -26,20 +26,26 @@ python3 -c "import PIL" 2>/dev/null && ok "PIL" || opt "PIL — vignette/overlay
 [ -f "$HOME/.herenow/credentials" ] && ok "here.now credentials" || opt "here.now — review canvas delivery (SETUP.md #7)"
 PUB="${HERENOW_PUBLISH:-$HOME/.agents/skills/here-now/scripts/publish.sh}"
 [ -f "$PUB" ] && ok "here-now publish.sh" || opt "here-now skill publish script (SETUP.md #7)"
-if [ -f .env ] && grep -q "^GEMINI_API_KEY=.\+" .env; then ok "GEMINI_API_KEY in .env"
-else opt "GEMINI_API_KEY — video-qa L3 (SETUP.md #8)"; fi
+if [ -f .env ] && grep -q "^AI_GATEWAY_API_KEY=.\+" .env; then
+  ok "AI_GATEWAY_API_KEY in .env"
+  if [ -d tools/video-qa/node_modules ]; then
+    if npm --prefix tools/video-qa run -s qa:check >/dev/null 2>&1; then ok "AI Gateway models reachable (qa:check)"
+    else opt "AI Gateway qa:check did not pass — run: npm --prefix tools/video-qa run qa:check (SETUP.md #8)"; fi
+  fi
+else opt "AI_GATEWAY_API_KEY — video-qa L3 + cloud whisper via the Vercel AI Gateway (SETUP.md #8)"; fi
 "$HOME/.venvs/capcut/bin/python" -c "import pyJianYingDraft" 2>/dev/null \
   && ok "pyJianYingDraft venv" || opt "pyJianYingDraft — capcut-export (SETUP.md #11)"
 command -v whisper-cli >/dev/null && ok "whisper-cli" || opt "whisper-cli — VAD cut planners + faster QA seam probes"
-if [ -f .env ] && grep -q "^OPENAI_API_KEY=.\+" .env; then ok "OPENAI_API_KEY in .env"
-else opt "OPENAI_API_KEY — cloud whisper fallback (SETUP.md #10c)"; fi
 command -v swiftc >/dev/null && ok "swiftc" || opt "swiftc — hook-variations AVFoundation probe (SETUP.md #12)"
 [ "$(git config core.hooksPath 2>/dev/null)" = ".githooks" ] && ok "scrub hook enabled" || opt "scrub hook — git config core.hooksPath .githooks (SETUP.md #13)"
 node -e "require.resolve('puppeteer')" 2>/dev/null && ok "puppeteer" || opt "puppeteer — broll-capture screenshots (SETUP.md #9)"
 [ -d "/Applications/Screen Studio.app" ] && ok "Screen Studio" || opt "Screen Studio — Lane C B-roll (SETUP.md #9)"
 printf "  NOTE  OpenArt MCP (openart-broll) — verify in-session: openart_account_get (SETUP.md #10)\n"
-if [ -f .env ] && grep -q "^ARCADS_API_KEY=.\+" .env; then ok "ARCADS_API_KEY in .env"
-else opt "ARCADS_API_KEY — arcads-broll generated B-roll (SETUP.md #10b)"; fi
+if [ -f .env ] && grep -q "^KIE_API_KEY=.\+" .env; then ok "KIE_API_KEY in .env"
+else opt "KIE_API_KEY — kie-broll generated B-roll / overlays / stills (SETUP.md #10b)"; fi
+for legacy in GEMINI_API_KEY OPENAI_API_KEY ARCADS_API_KEY ARCADS_BASIC_AUTH; do
+  [ -f .env ] && grep -q "^$legacy=.\+" .env && printf "  NOTE  %s is set but no longer used — the pack routes through AI_GATEWAY_API_KEY / KIE_API_KEY now\n" "$legacy"
+done
 
 echo
 echo "$pass passed, $fail required missing, $warn optional skipped"

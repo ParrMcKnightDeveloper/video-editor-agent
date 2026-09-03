@@ -16,6 +16,7 @@ import numpy as np
 import os, shutil
 
 FF = os.environ.get("FFMPEG") or shutil.which("ffmpeg") or "ffmpeg"
+CUT = os.environ.get("CUT", "demo-ad-v1.mp4")   # the RENDERED base cut to measure
 W, H = 1080, 1920
 SW, SH = 135, 240
 CIRCLE = (60, 1418, 380, 380)
@@ -25,7 +26,7 @@ def stack(t0, t1, n, fmt='gray', ch=1):
     ts = np.linspace(t0 + 0.12, t1 - 0.12, n)
     out = []
     for t in ts:
-        p = subprocess.run([FF, '-v', 'error', '-ss', f'{t:.3f}', '-i', 'arcads-ad-v5.mp4',
+        p = subprocess.run([FF, '-v', 'error', '-ss', f'{t:.3f}', '-i', CUT,
                             '-frames:v', '1', '-vf', f'scale={SW}:{SH},format={fmt}',
                             '-f', 'rawvideo', '-'], capture_output=True)
         out.append(np.frombuffer(p.stdout, np.uint8).reshape(SH, SW, ch).squeeze())

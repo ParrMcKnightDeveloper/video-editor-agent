@@ -15,7 +15,7 @@ node .claude/skills/video-review-canvas/scripts/read-notes.mjs <slug> v<N>
 ```
 
 - One slug for the whole project; bump `version` every round so old notes filter out but stay
-  in the store as history. The video filename carries the version (`arcads-ad-v8.mp4`) or the
+  in the store as history. The video filename carries the version (`demo-ad-v8.mp4`) or the
   browser serves the cached old one.
 - `blurb` is the changelog the creator reads first. `notes[]` is where each of the creator's notes gets an answer
   and where open decisions live (tone `amber`), risks to the brand at the top (tone `red`).

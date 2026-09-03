@@ -1,6 +1,6 @@
 ---
 name: ai-audio-sound-design
-description: Rebuild the audio of an AI-generated video (Arcads / AI actors / UGC-gen / any clip whose voices sound like sterile studio AI) so every scene sounds like it was really filmed in the location shown — location-matched ambience beds, room-matched convolution reverb, outdoor distance treatment, censor bleeps over swears, removal of the AI high-frequency watermark whine, and a social loudness master, all with the video stream untouched. Use whenever someone says clips "sound AI / fake / sterile / like a voiceover", asks to "add ambient sounds / background noise", "make it sound like the location they're in", "add reverb to match the room", "bleep the swears / curse words", or hands over AI-actor footage for an audio pass — even if they never say "sound design". Also for revision rounds on an existing pass ("make the lawnmower louder", "add a car driving by", "make it sound like it's outside"). NOT for captions (embedded-captions), cutting footage (reel-recut), or full branded motion-graphic edits (branded-ad-edit).
+description: Rebuild the audio of an AI-generated video (AI actors / UGC-gen / kie.ai or any generator whose voices sound like sterile studio AI) so every scene sounds like it was really filmed in the location shown — location-matched ambience beds, room-matched convolution reverb, outdoor distance treatment, censor bleeps over swears, removal of the AI high-frequency watermark whine, and a social loudness master, all with the video stream untouched. Use whenever someone says clips "sound AI / fake / sterile / like a voiceover", asks to "add ambient sounds / background noise", "make it sound like the location they're in", "add reverb to match the room", "bleep the swears / curse words", or hands over AI-actor footage for an audio pass — even if they never say "sound design". Also for revision rounds on an existing pass ("make the lawnmower louder", "add a car driving by", "make it sound like it's outside"). NOT for captions (embedded-captions), cutting footage (reel-recut), or full branded motion-graphic edits (branded-ad-edit).
 ---
 
 # AI Audio Sound Design
@@ -8,7 +8,7 @@ description: Rebuild the audio of an AI-generated video (Arcads / AI actors / UG
 AI-generated clips have three tells that scream "fake" before a viewer can articulate why:
 **dead silence between words** (real rooms are never silent), **dry studio voices in visibly
 reverberant spaces** (a bathroom that doesn't sound like a bathroom), and a **tonal watermark
-whine at 13–16 kHz** that every Arcads-style generator leaves in the track. This skill fixes
+whine at 13–16 kHz** that AI-actor generators leave in the track. This skill fixes
 all three per scene, plus broadcast-style censor bleeps, without touching a single video frame.
 
 Proven on a real 10-scene AI-actor ad (5 approved client revision rounds). The
@@ -149,6 +149,8 @@ Revision protocol, learned over 5 rounds:
 
 - ffmpeg/ffprobe from PATH (`FFMPEG` env var overrides). If an agent sandbox kills ffmpeg or
   node, re-run with the sandbox disabled.
-- `OPENAI_API_KEY` (Whisper) and `ELEVENLABS_API_KEY` (ambience kit) from the environment or a
-  `.env` at the repo root — never hardcode either.
+- `ELEVENLABS_API_KEY` (ambience kit) from the environment or a `.env` at the repo root — never
+  hardcode it. Word timestamps for the bleep spans come from local whisper.cpp
+  (`npx hyperframes transcribe`) or, as the cloud fallback, whisper through the Vercel AI
+  Gateway (`AI_GATEWAY_API_KEY`; see `tools/video-qa/src/gateway.ts` for the call).
 - python3 with numpy + scipy (`pip install numpy scipy`).

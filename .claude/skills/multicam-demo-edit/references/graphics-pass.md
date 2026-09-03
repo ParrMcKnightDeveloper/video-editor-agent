@@ -9,7 +9,7 @@ recipe; `scripts/build-comp.mjs` is the generator that shipped.
 ## 0. Decide the regime at intake
 
 Ask who runs the ad. On the creator's organic feed, motion graphics never take the full frame. On a
-brand-run ad (Arcads' own ad account) full-screen takeovers are *expected* and their absence
+brand-run ad (the brand's own ad account) full-screen takeovers are *expected* and their absence
 reads as under-delivery. Never cover the creator's face in either regime. The palette question matters too:
 the creator chose monochrome editorial (near-black `#0E0E10`, cream `#F4F2EE`, Inter 100–900, no colour
 accent) — "over the top" then has to come from motion, scale and real footage, not colour.
@@ -18,7 +18,8 @@ accent) — "over the top" then has to come from motion, scale and real footage,
 
 ```bash
 # per-shot dry mic audio, exactly the EDL's keep ranges, transcribed in isolation, mapped to output time
-npx tsx mg/transcribe-shots.ts        # -> mg/words.json  [{text,start,end,seg}]
+node mg/transcribe-shots.mjs          # -> mg/words.json  [{text,start,end,seg}]
+# whisper through the Vercel AI Gateway (AI_GATEWAY_API_KEY; WHISPER_PROMPT = the names the speaker says)
 ```
 
 - Never caption from Whisper on the finished cut: it drifts up to +1s by the back half.
@@ -26,7 +27,7 @@ npx tsx mg/transcribe-shots.ts        # -> mg/words.json  [{text,start,end,seg}]
   transcribe it together with its contiguous neighbour and map.
 - A clipped first syllable makes three passes disagree ("to what" / "What" / "That's what"); a
   loudness-normalised re-pass settles it. Caption only what is unambiguously there.
-- Fix names in place: `arcads.ai`, `Seedance 2.5`, `GPT Image 2`, `99%`.
+- Fix names in place (the product's domain, model names like `Seedance 2.5` / `GPT Image 2`, figures like `99%`).
 - Even then expect a few onsets to be wrong. Two words sharing a timestamp is the tell. When the creator
   says a beat is out of sync, measure the syllable bursts on the RMS envelope and hard-set the
   times (V8: "wearing" was 0.3s early, "holding" 0.4s late).
@@ -36,7 +37,7 @@ npx tsx mg/transcribe-shots.ts        # -> mg/words.json  [{text,start,end,seg}]
 Four readers before any design (run them as a Workflow): (a) every past motion-graphics edit
 and the creator's exact praise/kills; (b) the technique palette with copy-paste mechanics from the
 `hyperframes-*` skills and `branded-ad-edit/references`; (c) a catalogue of the real assets — the
-generated-clip library (see `arcads-broll`; on the proving run 51 unique Seedance clips, all 720×1280 10s),
+generated-clip library (see `kie-broll`; on the proving run 51 unique Seedance clips, all 720×1280 10s),
 the storyboard PNGs, the screen captures that can be mined for a reference video; (d) extraction
 of anything that must come from the base footage (the YETI reference video lived only in take 06's
 screen capture, 456×800 native, 2.36× upscale is "soft but acceptable" for 2s with grain).
@@ -90,7 +91,7 @@ x/y/scale. The resting clip is `circle(2200px at 250px 1608px)` — 1400px clipp
 video, b-roll). Ones that keep the creator in the circle PIP at z30 *below* it (MCP field, montage):
 `#vclip` → `circle(190px at 250px 1608px)`, `#vwrap` reframed at 0.40. The MCP field hands off
 to the cut's own `screen` layout under a two-frame 60% ring flash, so the hardest graphic ends on
-a real Arcads screen with no visible cut. Seam-set rule: any `tl.set` that must coincide with a
+a real product screen with no visible cut. Seam-set rule: any `tl.set` that must coincide with a
 base cut goes at `cut − 0.006`; a cover that must outlast the cut ends `+0.05` past it.
 
 **The beats that shipped** (the creator's 13 notes, all landed):
@@ -122,7 +123,7 @@ base cut goes at `cut − 0.006`; a cover that must outlast the cut ends `+0.05`
   (the creator moves centre→corner circle under the first cut), INSANE / CREATIVE / BUDGETS in a fixed
   right-aligned column, blinds out. V7's five whips in three seconds were "too much movement";
   V8's three cuts were accepted.
-- End box on the seam: seam halves draw in and dock, ink border draws around the mark, `arcads.ai`
+- End box on the seam: seam halves draw in and dock, ink border draws around the mark, the product's domain
   rises, a mono chip types the keyword and lifts off on "send".
 
 **Captions.** Chunks of ≤3 words broken on pauses >0.22s and shot boundaries; each a timed clip

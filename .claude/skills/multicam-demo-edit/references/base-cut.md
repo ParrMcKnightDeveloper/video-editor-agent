@@ -65,7 +65,7 @@ signed off.
 ## 4. Render — `build.py`
 
 ```bash
-cd <project> && python3 build.py            # full render -> arcads-ad-vN.mp4
+cd <project> && python3 build.py            # full render -> demo-ad-v1.mp4 (OUT_NAME=demo-ad-vN.mp4 per round)
 python3 build.py --stills --only 03b-prompt         # one JPEG per segment to validate a crop
 ```
 

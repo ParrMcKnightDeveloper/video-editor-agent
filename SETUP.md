@@ -9,7 +9,9 @@ bash scripts/check-setup.sh
 ```
 
 **MCP servers: none required.** Everything runs through the CLI (ffmpeg, node,
-python) and plain REST APIs (ElevenLabs, optional Gemini, optional here.now).
+python) and plain REST APIs — three keys cover it: **ElevenLabs** (sound), the **Vercel AI
+Gateway** (every LLM / whisper call, one key instead of OpenAI + Gemini keys), and **kie.ai**
+(generated footage), plus optional here.now for review pages.
 Two optional MCP-powered skills exist: `broll-capture` can use a **browser MCP**
 (Playwright or a browser extension) for no-code website captures — the bundled
 Puppeteer script covers the same ground without one — and `openart-broll` uses the
@@ -74,6 +76,7 @@ whisper models — no separate install.
 - CHECK: `npx hyperframes transcribe --help` exits 0.
 - Optional: a standalone `whisper-cli` (`brew install whisper-cpp`) + a ggml model
   makes `video-qa` L2 seam re-probes faster, but is not required.
+- Cloud fallback: whisper through the Vercel AI Gateway (§8) — no OpenAI key needed.
 
 ### 6. python3
 
@@ -108,14 +111,22 @@ notes back. Without it, deliver cuts as files and collect notes as text.
 - FIX: install the here-now skill and sign in once. Its agent docs are UA-gated:
   fetch https://here.now/docs with header `User-Agent: claude`.
 
-### 8. GEMINI_API_KEY (`.env`) — video-qa Layer 3
+### 8. AI_GATEWAY_API_KEY (`.env`) — Vercel AI Gateway: video-qa Layer 3 + cloud whisper
 
-A multimodal model watches+listens to a 480p proxy of the render and flags
-candidate issues. Skipped gracefully when unset; QA layers 1/2/4 still run.
+One key for every hosted-model call. video-qa's Layer 3 sends a 480p proxy of the render
+(audio intact) to a Gemini model through the gateway and gets schema-enforced JSON back;
+the same key serves the cloud whisper fallback (`tools/video-qa`, `hook-splitter`'s
+`transcribe.py`, `multicam-demo-edit`'s per-shot `transcribe-shots.mjs`) when local
+whisper.cpp is unavailable. Skipped gracefully when unset; QA layers 1/2/4 still run.
 
-- CHECK: `grep -c "^GEMINI_API_KEY=.\+" .env` → 1 (or accept the skip).
-- FIX: key from https://aistudio.google.com. Model override: `GEMINI_QA_MODEL`
-  (default `gemini-flash-latest`).
+- CHECK: `grep -c "^AI_GATEWAY_API_KEY=.\+" .env` → 1, then
+  `npm --prefix tools/video-qa run qa:check` → `READY` (key present, both model ids exist on
+  the gateway, the QA model accepts file input).
+- FIX: create a key in the Vercel dashboard → AI Gateway → API keys; paste it into `.env`.
+  Model overrides: `VIDEO_QA_MODEL` (default `google/gemini-3.6-flash` — keep a Gemini id,
+  the family that takes video + audio) and `VIDEO_QA_TRANSCRIBE_MODEL` (default
+  `openai/whisper-1`). `GET https://ai-gateway.vercel.sh/v1/models` lists what is available.
+  Spend shows per key in Vercel; an L3 pass on a 60 s ad is cents.
 
 ### 9. Website capture (broll-capture)
 
@@ -135,21 +146,19 @@ candidate issues. Skipped gracefully when unset; QA layers 1/2/4 still run.
   Code MCP settings). No API key — auth rides on the connection. Generation spends
   OpenArt credits; the skill quotes with `openart_model_cost` and asks before firing.
 
-### 10b. Arcads API (arcads-broll) — generated B-roll & motion graphics
+### 10b. KIE_API_KEY (`.env`) — kie.ai generated B-roll, overlays & stills (kie-broll)
 
-- CHECK: `grep -c "^ARCADS_API_KEY=.\+" .env` → 1, and the companion pack cloned:
-  `git clone https://github.com/krusemediallc/arcads-claude-code` (its
-  `arcads-external-api` skill carries the routes + per-model prompt library).
-- FIX: key from your Arcads account (sign up: https://arcads.ai/?via=claude-code).
-  Generation spends Arcads credits — the skill estimates and asks before firing.
+Seedance, Kling, Wan, Hailuo, Nano Banana, GPT Image and more behind one job API and one
+prepaid wallet. `kie-broll/scripts/kie_gen.py` submits, polls and downloads.
 
-### 10c. OPENAI_API_KEY (`.env`) — cloud whisper fallback
-
-Used only when whisper.cpp is unavailable: the QA engine's transcriber, `hook-splitter`'s
-`transcribe.py`, and `arcads-video-edit`'s per-shot transcripts.
-
-- CHECK: `grep -c "^OPENAI_API_KEY=.\+" .env` → 1 (or accept local whisper only).
-- FIX: key from https://platform.openai.com. Transcription spends API credits.
+- CHECK: `grep -c "^KIE_API_KEY=.\+" .env` → 1, then
+  `python3 .claude/skills/kie-broll/scripts/kie_gen.py preflight` → `OK`.
+- FIX: key from https://kie.ai/api-key, wallet funded. In a sandboxed session the hosts
+  `api.kie.ai`, `tempfile.aiquickdraw.com` and `kieai.redpandaai.co` each need an allowlist
+  entry. kie.ai has no quote endpoint: the skill reads the per-clip price off the model page,
+  states it, and asks before every generation. Model ids and input fields differ per family —
+  `kie-broll/references/models.md` is the running record; confirm on
+  https://docs.kie.ai/market before the first call on a new model.
 
 ### 11. pyJianYingDraft venv — capcut-export (work-in-progress)
 

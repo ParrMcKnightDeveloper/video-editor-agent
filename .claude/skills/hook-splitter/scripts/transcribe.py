@@ -2,7 +2,7 @@
 """Step 2b — the two speech maps the planner needs, off the MIC track.
 
   work/vad.txt    silero VAD speech segments
-  work/words.json OpenAI Whisper verbose_json with word timestamps
+  work/words.json whisper word timestamps, OpenAI verbose_json shape ({"words": [{word,start,end}]})
 
 Both are needed and neither is sufficient. VAD clips word ONSETS (it started
 "Alright" at 3.52s where the energy and whisper both put it at 2.48s); whisper drifts
@@ -10,9 +10,12 @@ and stretches. plan.py uses them only as a cross-check on an energy gate.
 
     python3 transcribe.py [hooks.json]
 
-Needs OPENAI_API_KEY (env, or a .env anywhere up the tree from the config).
+Whisper runs through the Vercel AI Gateway (POST /v4/ai/transcription-model, model
+VIDEO_QA_TRANSCRIBE_MODEL, default openai/whisper-1, word-level timestamps requested via
+providerOptions.openai). Needs AI_GATEWAY_API_KEY (env, or a .env anywhere up the tree from
+the config). The audio travels base64-inline, so the mic is encoded to 48k mono mp3 first.
 """
-import json, os, re, subprocess, sys
+import base64, json, os, re, subprocess, sys, time, urllib.error, urllib.request
 from _cfg import load, w, FFMPEG, VAD_BIN, VAD_MODEL
 
 cfg = load()
@@ -27,39 +30,56 @@ print(f"VAD: {len(lines)} segments")
 # NOTE: this binary prints CENTISECONDS. Dividing by 1000 silently throws away
 # everything past ~98s. plan.py divides by 100 — do not "fix" that.
 
-# ── words, via the OpenAI Whisper API ─────────────────────────────────────────────
-key = os.environ.get("OPENAI_API_KEY")
+# ── words, via whisper through the Vercel AI Gateway ──────────────────────────────
+key = os.environ.get("AI_GATEWAY_API_KEY") or os.environ.get("VERCEL_OIDC_TOKEN")
 if not key:
     d = cfg["_root"]
     for _ in range(6):
         p = os.path.join(d, ".env")
         if os.path.exists(p):
-            m = re.search(r"^OPENAI_API_KEY=(.+)$", open(p).read(), re.M)
+            m = re.search(r"^AI_GATEWAY_API_KEY=(.+)$", open(p).read(), re.M)
             if m: key = m.group(1).strip().strip('"').strip("'"); break
         d = os.path.dirname(d)
 if not key:
-    sys.exit("OPENAI_API_KEY not found (env or .env)")
+    sys.exit("AI_GATEWAY_API_KEY not found (env or .env)")
+GATEWAY = os.environ.get("AI_GATEWAY_BASE_URL", "https://ai-gateway.vercel.sh").rstrip("/")
+MODEL = os.environ.get("VIDEO_QA_TRANSCRIBE_MODEL", "openai/whisper-1")
 
 mp3 = w(cfg, "mic.mp3")
 subprocess.run([FFMPEG, "-y", "-v", "error", "-i", mic,
                 "-c:a", "libmp3lame", "-b:a", "48k", mp3], check=True)
 size = os.path.getsize(mp3) / 1e6
-print(f"mic.mp3 {size:.1f} MB  (API limit 25 MB — mono 48k mp3 holds ~2h)")
+print(f"mic.mp3 {size:.1f} MB  (sent base64-inline; keep it under ~20 MB — mono 48k mp3 holds ~55 min)")
 
-args = ["curl", "-sS", "https://api.openai.com/v1/audio/transcriptions",
-        "-H", f"Authorization: Bearer {key}",
-        "-F", f"file=@{mp3}", "-F", "model=whisper-1", "-F", "language=en",
-        "-F", "response_format=verbose_json",
-        "-F", "timestamp_granularities[]=word",
-        "-F", "timestamp_granularities[]=segment"]
+opts = {"timestampGranularities": ["word"], "language": "en"}
 if cfg.get("prompt"):
-    args += ["-F", f"prompt={cfg['prompt']}"]
-out = subprocess.run(args, capture_output=True, text=True).stdout
-try:
-    data = json.loads(out)
-except json.JSONDecodeError:
-    sys.exit(f"whisper API returned non-JSON:\n{out[:600]}")
-if "error" in data:
-    sys.exit(f"whisper API error: {data['error']}")
-json.dump(data, open(w(cfg, "words.json"), "w"), indent=1)
-print(f"words: {len(data.get('words') or [])}   segments: {len(data.get('segments') or [])}")
+    opts["prompt"] = cfg["prompt"]
+body = json.dumps({"audio": base64.b64encode(open(mp3, "rb").read()).decode(),
+                   "mediaType": "audio/mpeg", "providerOptions": {"openai": opts}}).encode()
+data = None
+for attempt in range(3):
+    r = urllib.request.Request(f"{GATEWAY}/v4/ai/transcription-model", data=body, method="POST",
+                               headers={"Authorization": f"Bearer {key}", "ai-model-id": MODEL,
+                                        "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(r, timeout=600) as resp:
+            data = json.loads(resp.read().decode())
+        break
+    except urllib.error.HTTPError as e:
+        msg = e.read().decode(errors="replace")[:600]
+        if e.code in (429, 502, 503, 504) and attempt < 2:
+            time.sleep(15 * (attempt + 1)); continue
+        sys.exit(f"gateway transcription HTTP {e.code}: {msg}")
+if data is None:
+    sys.exit("gateway transcription: no response")
+
+segs = [s for s in data.get("segments") or [] if (s.get("text") or "").strip()]
+multi = sum(1 for s in segs if len(s["text"].split()) > 2)
+if segs and multi > len(segs) / 2:
+    sys.exit(f"{MODEL} returned sentence segments, not words; plan.py needs word timestamps "
+             f"(providerOptions.openai.timestampGranularities=['word'] was requested)")
+out = {"text": data.get("text", ""), "language": data.get("language"),
+       "duration": data.get("durationInSeconds"),
+       "words": [{"word": s["text"].strip(), "start": s["startSecond"], "end": s["endSecond"]} for s in segs]}
+json.dump(out, open(w(cfg, "words.json"), "w"), indent=1)
+print(f"words: {len(out['words'])}   (model {MODEL} via the AI Gateway)")

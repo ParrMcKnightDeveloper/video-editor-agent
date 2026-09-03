@@ -11,7 +11,7 @@
  *   packet.md          the human/agent-readable index
  *
  * Padding rules: deterministic-layer timestamps are exact → tight windows;
- * Gemini-sourced windows should be padded ±VIDEO_QA_INSPECT_PADDING_S by the
+ * L3 (model)-sourced windows should be padded ±VIDEO_QA_INSPECT_PADDING_S by the
  * caller before invoking this.
  */
 import { existsSync, mkdirSync } from "node:fs";

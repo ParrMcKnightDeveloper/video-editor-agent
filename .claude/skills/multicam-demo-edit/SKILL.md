@@ -1,8 +1,8 @@
 ---
-name: arcads-video-edit
+name: multicam-demo-edit
 description: >
   Turn a creator's multi-take product-demo recordings (each take = screen recording + camera video +
-  mic WAV, usually the creator walking through Arcads) into a finished 9:16 ad: an EDL-driven base cut
+  mic WAV, the creator walking through a product on screen) into a finished 9:16 ad: an EDL-driven base cut
   rotating three layouts (the speaker full screen / split with the screen on top / full-screen
   product with the speaker in a circle), every pause cut so they talk over their own pauses, retakes dropped; then a
   HyperFrames motion-graphics pass with full-screen takeovers, the base video moving into splits
@@ -10,16 +10,16 @@ description: >
   music, reviewed on a here.now canvas and gated by a copy review and the 4-layer video QA. Use
   whenever the user hands over a folder of takes and says "edit these together",
   "make the base edit", "cut this into an ad", "add motion graphics / takeovers / captions /
-  music", or leaves timeline notes on an Arcads-style edit, even if they never say Arcads or
-  multicam. Not for reel-recut, embedded-captions, or a talking head with no screen footage
-  (branded-ad-edit).
+  music", or leaves timeline notes on a screen-demo edit, even if they never say multicam or
+  screen recording. Not for reel-recut, embedded-captions, or a talking head with no screen
+  footage (branded-ad-edit).
 ---
 
-# Arcads video edit
+# Multicam demo edit (screen + camera + mic)
 
 Multi-take screen+camera+mic recordings in → a base cut the creator signs off → a motion-graphics
 pass that impresses a senior editor → published on the review canvas, every round. Proven on a real
-Arcads brand ad: V1–V5 base cut across 21 timeline notes and three QA rounds, then V6 (rejected:
+brand-run ad for an AI video product: V1–V5 base cut across 21 timeline notes and three QA rounds, then V6 (rejected:
 "no full-screen takeovers… go crazy") → V7/V8 accepted ("overall much better!!").
 
 Two phases, two different jobs. **Phase 1 is editing** — the picture gets locked and never moves
@@ -80,7 +80,7 @@ background. The pass has its own sub-pipeline:
 
 1. **Transcript per shot, never per cut.** Whisper on a concatenated cut drifts up to +1s;
    transcribe each shot's dry mic audio in isolation and map through the EDL
-   (`scripts/transcribe-shots.ts`). Fix hallucinations on 1-second shots and clipped first words
+   (`scripts/transcribe-shots.mjs` — whisper through the Vercel AI Gateway, word granularity). Fix hallucinations on 1-second shots and clipped first words
    with a loudness-normalised re-pass. Then still expect a few onsets to be wrong — when the creator says a
    word is out of sync, measure the syllable on the waveform and hard-set it.
 2. **Research before design.** What the reviewer has praised and killed across every past edit, the
@@ -132,7 +132,7 @@ the file, not the log — it found four overlapped frames a snapshot pass missed
 - **Measure, don't guess:** face points, crop scales (cam→split is exactly 0.50, split→circle 0.40),
   silence thresholds, word onsets, the popup rectangle the reference video flies back into. Every
   "circles aren't where they should be" in review history was a guessed geometry.
-- **New version = new file** (`arcads-ad-v7.mp4`, `-v8`…); the canvas keeps one slug across rounds.
+- **New version = new file** (`demo-ad-v7.mp4`, `-v8`…); the canvas keeps one slug across rounds.
 - **A render longer than ~8 minutes runs as a tracked background job.** Two renders died with the
   foreground shell's timeout; a third was `pkill`ed at 2237/2802 frames by a wait loop.
 
@@ -149,8 +149,9 @@ the file, not the log — it found four overlapped frames a snapshot pass missed
 | `assets/` | the real `edl.json`, SFX kit, canvas config and b-roll prompt from the shipped ad |
 
 Requires: ffmpeg/ffprobe (any build — all text is HyperFrames, no libass/drawtext needed;
-`FFMPEG`/`FFPROBE` env vars override PATH), node ≥ 20 + `npx hyperframes`, `OPENAI_API_KEY`
-(per-shot Whisper), `ELEVENLABS_API_KEY` (SFX + music), `ARCADS_BASIC_AUTH` or `ARCADS_API_KEY`
-in `.env` for generated clips (see `arcads-broll`), here.now credentials, and the
+`FFMPEG`/`FFPROBE` env vars override PATH), node ≥ 20 + `npx hyperframes`, `AI_GATEWAY_API_KEY`
+(per-shot whisper through the Vercel AI Gateway), `ELEVENLABS_API_KEY` (SFX + music),
+`KIE_API_KEY` in `.env` for generated clips (see `kie-broll` — its `kie_gen.py` replaces the
+vendor-specific generator this lane used to ship), here.now credentials, and the
 `video-review-canvas`, `video-qa` and `branded-ad-edit` skills alongside, plus a final copy-review
 pass on every typeset word.

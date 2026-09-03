@@ -5,7 +5,8 @@
  *   1. manifest.words           — output-time words the editor emitted (best)
  *   2. manifest.sourceWords     — source-time words, mapped through the cut list
  *   3. transcribe the SOURCE    — whisper.cpp via `npx hyperframes transcribe`
- *                                 (local, free) or OpenAI whisper-1 word mode
+ *                                 (local, free) or a whisper model through the
+ *                                 Vercel AI Gateway with word-level timestamps
  *
  * NEVER a full transcription of the RENDER — whisper hallucinates connective
  * phrases at jump cuts and fuses differently every run (SESSION_LOG
@@ -19,10 +20,12 @@ import { join } from "node:path";
 import type { EditManifest, WordTiming } from "./types";
 import { extractAudioFull, extractAudioWindow, ffprobeJson, runCapture } from "./ffmpeg";
 
-export type TranscriberBackend = "auto" | "whispercpp" | "openai" | "none";
+export type TranscriberBackend = "auto" | "whispercpp" | "gateway" | "none";
 
 function backend(): TranscriberBackend {
-  return (process.env.VIDEO_QA_TRANSCRIBER as TranscriberBackend) || "auto";
+  const raw = process.env.VIDEO_QA_TRANSCRIBER || "auto";
+  // "openai" was the pre-gateway name for the cloud fallback; keep old .env files working.
+  return (raw === "openai" ? "gateway" : raw) as TranscriberBackend;
 }
 
 /** whisper.cpp via the HyperFrames CLI (word-level `[{text,start,end}]`). */
@@ -79,14 +82,20 @@ async function whisperCppTranscribe(wavPath: string): Promise<WordTiming[] | nul
   }
 }
 
-async function openaiTranscribe(wavPath: string): Promise<WordTiming[] | null> {
-  if (!process.env.OPENAI_API_KEY) return null;
+/** Cloud fallback through the Vercel AI Gateway. Word-level timestamps are requested;
+ *  if the provider ignored that and returned sentence segments, this returns null
+ *  rather than feeding segment edges to the clipped-word check (which would false-flag). */
+async function gatewayTranscribeWords(wavPath: string): Promise<WordTiming[] | null> {
+  const { gatewayKey, gatewayTranscribe } = await import("./gateway");
+  if (!gatewayKey()) return null;
   try {
-    const { transcribeWithTimestamps } = await import("./openai-transcribe");
     const buf = await readFile(wavPath);
-    const file = new File([buf], "audio.wav", { type: "audio/wav" });
-    const result = await transcribeWithTimestamps(file, { granularity: ["word"] });
-    return (result.words ?? []).map((w) => ({ text: w.word, start: w.start, end: w.end }));
+    const result = await gatewayTranscribe(new Uint8Array(buf), "audio/wav", { words: true });
+    const segs = result.segments.filter((s) => s.text);
+    if (!segs.length) return null;
+    const multiWord = segs.filter((s) => s.text.trim().split(/\s+/).length > 2).length;
+    if (multiWord > segs.length / 2) return null; // segment-level, not word-level
+    return segs.map((s) => ({ text: s.text, start: s.startSecond, end: s.endSecond }));
   } catch {
     return null;
   }
@@ -100,8 +109,8 @@ async function transcribeFile(wavPath: string): Promise<{ words: WordTiming[]; v
     if (words) return { words, via: "whispercpp" };
     if (be === "whispercpp") return null;
   }
-  const words = await openaiTranscribe(wavPath);
-  return words ? { words, via: "openai" } : null;
+  const words = await gatewayTranscribeWords(wavPath);
+  return words ? { words, via: "gateway" } : null;
 }
 
 /** Map SOURCE-time words to OUTPUT time through the manifest's cut list

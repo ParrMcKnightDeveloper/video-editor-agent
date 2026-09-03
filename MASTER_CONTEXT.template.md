@@ -64,8 +64,12 @@ empty fields get offered for population as work reveals the answers.
 ## Machine and credentials
 
 - **Binaries:** (ffmpeg/ffprobe/whisper paths if not on PATH; sandbox quirks; GPU render flag)
-- **Where each key lives:** (which `.env` holds ELEVENLABS_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY /
-  ARCADS_*; never paste the values here — paths only)
+- **Where each key lives:** (which `.env` holds ELEVENLABS_API_KEY / AI_GATEWAY_API_KEY /
+  KIE_API_KEY; never paste the values here — paths only)
+- **Gateway model choices:** (VIDEO_QA_MODEL / VIDEO_QA_TRANSCRIBE_MODEL overrides, if any,
+  and why)
+- **kie.ai models that worked:** (model id → fields → typical per-clip cost, as you confirm them;
+  mirror into `kie-broll/references/models.md` when generic)
 
 ## Learnings
 

@@ -2,7 +2,7 @@
 """variants.json -> an N-up gallery review canvas, publishable to here.now.
 
     python3 build_review.py --out variants/ --version v1 \
-        --title "Arcads ad — 21 hook variants" [--map subjects.json]
+        --title "Product ad — 21 hook variants" [--map subjects.json]
     bash ~/.agents/skills/here-now/scripts/publish.sh variants/review \
         --title "..." --client claude-code [--slug <existing>]
 

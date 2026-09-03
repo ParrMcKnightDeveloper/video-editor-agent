@@ -109,7 +109,7 @@ async function main() {
     manifestPath,
     skipSemantic: flag("skip-semantic"),
     instructions: arg("instructions") ? readFileSync(resolveFromInvoker(arg("instructions")!), "utf8") : undefined,
-    geminiFps: arg("fps") ? Number(arg("fps")) : undefined,
+    proxyFps: arg("fps") ? Number(arg("fps")) : undefined,
     outDir: arg("out") ? resolveFromInvoker(arg("out")!) : undefined,
     noCache: flag("no-cache"),
   });

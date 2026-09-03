@@ -1,5 +1,43 @@
 # SESSION LOG — Video Editor Agent
 
+## 2026-09-03 — Fork set up for a new owner: Vercel AI Gateway + kie.ai replace OpenAI/Gemini keys and Arcads
+
+**Decision (the user):** run this pack on three keys — ElevenLabs (unchanged), one **Vercel AI
+Gateway** key for every LLM/whisper call instead of separate OpenAI and Gemini keys, and
+**kie.ai** for generated footage instead of Arcads.
+
+**Done**
+- `tools/video-qa`: `gemini.ts` + `openai-transcribe.ts` → `gateway.ts` (plain fetch). L3 now
+  attaches the 480p proxy as a base64 `file` part on an OpenAI-compatible chat completion with
+  `response_format: json_schema` (model `VIDEO_QA_MODEL`, default `google/gemini-3.6-flash`);
+  oversized proxies re-encode once, then skip with a reason. The cloud transcriber calls
+  `POST /v4/ai/transcription-model` with `providerOptions.openai.timestampGranularities=['word']`
+  and refuses sentence-level results rather than feeding them to the clipped-word check.
+  `VIDEO_QA_TRANSCRIBER=openai` still works as an alias for `gateway`. New `qa:check` CLI reads the
+  public `/v1/models` list and confirms the configured ids. Rubric version bumped (cache key).
+  Typecheck clean; the fixture tests need ffmpeg, which the setup sandbox lacked — run
+  `npm --prefix tools/video-qa test` locally.
+- New skill **`kie-broll`** (replaces `arcads-broll`): `scripts/kie_gen.py` (stdlib python) drives
+  `createTask`/`recordInfo`, uploads local refs, polls, downloads, logs spend; model-agnostic
+  (`--set key=value`) because kie.ai's ids and field names differ per family — `references/models.md`
+  is the running record and the cost gate is manual (no quote endpoint).
+- `arcads-video-edit` → **`multicam-demo-edit`**: vendor-neutral name/description/provenance, the
+  Arcads generator removed in favour of `kie-broll`, `transcribe-shots.ts` (which imported a
+  service that never existed in this repo) rewritten as a self-contained `transcribe-shots.mjs`
+  on the gateway, output names `demo-ad-vN.mp4` (`OUT_NAME`, `CUT` env overrides). The shipped
+  `build-comp.mjs` template and the brand-safety case study still describe the original ad.
+- `hook-splitter/transcribe.py` and `reel-recut`/`ai-audio-sound-design` docs moved to the gateway;
+  `video-qa` SKILL + `layer3-semantic.md` rewritten for the new transport; pipeline routing updated.
+- Setup surface: `.env.example`, SETUP.md (§5, §8, §10b), `check-setup.sh` (flags stale
+  GEMINI/OPENAI/ARCADS keys), README, ARCHITECTURE, CLAUDE.md, MASTER_CONTEXT template.
+
+**Open until the first live run**
+- The gateway's acceptance of a `video/mp4` file part on a Gemini model is documented behaviour for
+  file input, not yet exercised from this pack (the sandbox could not reach the gateway or kie.ai).
+  First real `qa:video` run with a key is the proof; the layer degrades to `skipped` if rejected.
+- kie.ai video model input fields: only Kling 3.0's are recorded from the docs; verify Seedance
+  fields on the model page before the first spend and log them in `references/models.md`.
+
 ## 2026-09-02 — This pack becomes the only home for video editing; the working repo symlinks in
 
 **Decision (the user):** every video-editing skill, script and process lives here, and only

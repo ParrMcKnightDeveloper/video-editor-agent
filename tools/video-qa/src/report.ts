@@ -35,7 +35,7 @@ export function aggregate(args: {
   const deterministic = [...technical.issues, ...transcript.issues];
 
   // Corroboration: a semantic finding matching a deterministic finding raises
-  // confidence on both. Gemini-only issues stay ≤ HIGH.
+  // confidence on both. Model-only (L3) issues stay ≤ HIGH.
   for (const sIssue of semantic.issues) {
     for (const dIssue of deterministic) {
       if (overlaps(sIssue, dIssue)) {
@@ -87,7 +87,7 @@ export function renderMarkdown(report: QaReport): string {
     ``,
     layerLine("Technical (ffmpeg)", l.technical),
     layerLine("Transcript boundary", l.transcript),
-    layerLine("Semantic (Gemini)", l.semantic),
+    layerLine(`Semantic (${report.model ?? "AI Gateway"})`, l.semantic),
     ``,
     `Severity: ${report.summary.CRITICAL} critical · ${report.summary.HIGH} high · ${report.summary.MEDIUM} medium · ${report.summary.LOW} low`,
     ``,

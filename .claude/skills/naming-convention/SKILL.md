@@ -155,7 +155,7 @@ Four things to get right around a rename:
 | hook variants (one body × N hooks) | `hook-NN-<product>-<style>-body-<edited\|unedited>` |
 | ratio cutdowns of one edit | `<project>-<ratio>` e.g. `acme-9x16` |
 | revision rounds | keep the name, bump a version segment; never overwrite a delivered file |
-| stills / frame grabs for review | `<project>-<timecode>` e.g. `arcads-0m17s2` |
+| stills / frame grabs for review | `<project>-<timecode>` e.g. `demo-ad-0m17s2` |
 
 If a new batch does not fit these, choose the axes first and write them down in the handover
 before renaming 40 files — the pattern is much cheaper to change before it exists.

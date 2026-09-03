@@ -2,11 +2,11 @@
  * video-qa orchestrator — the four-layer funnel, cheap → expensive:
  *   1. ffmpeg/ffprobe technical QA (video + audio)      — always
  *   2. transcript edit-boundary QA                       — always (degrades)
- *   3. Gemini whole-video watch+listen                   — unless skipped/no key
+ *   3. multimodal whole-video watch+listen (AI Gateway)  — unless skipped/no key
  *   4. targeted inspection packets                       — for issues that need eyes
  *
  * If a deterministic tool can answer something, the deterministic tool answers
- * it. Gemini's job is to tell Claude WHERE to look; Claude verifies with
+ * it. The model's job is to tell Claude WHERE to look; Claude verifies with
  * inspection packets before changing any edit.
  */
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
@@ -19,7 +19,7 @@ import { runSemanticLayer } from "./layer3-semantic";
 import { inspectWindow } from "./inspect";
 import { aggregate, writeReport } from "./report";
 import { cacheGet, cacheKey, cachePut } from "./cache";
-import { geminiModel } from "./gemini";
+import { qaModel } from "./gateway";
 
 export type { EditManifest, QaReport, QaIssue } from "./types";
 export { loadManifest } from "./manifest/schema";
@@ -32,7 +32,8 @@ export interface RunQaOptions {
   manifestPath?: string;
   skipSemantic?: boolean;
   instructions?: string;
-  geminiFps?: number;
+  /** Frame rate of the 480p proxy sent to the model (default 15). */
+  proxyFps?: number;
   /** Auto-build inspection packets for the top N issues (default 4). */
   autoInspect?: number;
   outDir?: string;
@@ -111,8 +112,8 @@ export async function runQa(opts: RunQaOptions): Promise<{ report: QaReport; out
   if (opts.skipSemantic) {
     semantic = { status: "skipped", reason: "--skip-semantic", issues: [] };
   } else {
-    semantic = await runLayer("L3", geminiModel(), () =>
-      runSemanticLayer(manifest, { instructions: opts.instructions, fps: opts.geminiFps, log })
+    semantic = await runLayer("L3", qaModel(), () =>
+      runSemanticLayer(manifest, { instructions: opts.instructions, fps: opts.proxyFps, log })
     );
   }
 
@@ -121,7 +122,7 @@ export async function runQa(opts: RunQaOptions): Promise<{ report: QaReport; out
     videoSha256: videoSha,
     manifestPath: opts.manifestPath,
     manifestSha256: manifestSha,
-    model: semantic.status === "skipped" ? undefined : geminiModel(),
+    model: semantic.status === "skipped" ? undefined : qaModel(),
     iteration,
     technical,
     transcript,
