@@ -1,18 +1,36 @@
 /**
  * ffmpeg/ffprobe plumbing for video QA.
  *
- * Binary resolution mirrors src/render/video.ts: explicit env → Homebrew arm64 →
- * /usr/local → PATH. NEVER the vendored x86_64 tools/ffmpeg (won't run on Apple
- * Silicon). The local ffmpeg has no libass/drawtext — text on images goes
- * through PIL (see py/draw_markers.py), never drawtext.
+ * Binary resolution: explicit env (FFMPEG_PATH / FFMPEG) → the build bundled by
+ * `npm install` at the pack root (ffmpeg-static / ffprobe-static, so nothing has to
+ * be installed on the machine) → Homebrew → /usr/local → PATH. Some builds have no
+ * libass/drawtext — text on images goes through PIL (see py/draw_markers.py).
  */
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream, existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { join } from "node:path";
+import { PACK_ROOT } from "./env";
 
-function resolveBin(envVar: string, name: string): string {
-  const fromEnv = process.env[envVar];
-  if (fromEnv) return fromEnv;
+/** Path of the npm-bundled binary, if the root package has been installed. */
+function bundledBin(name: "ffmpeg" | "ffprobe"): string | null {
+  try {
+    const req = createRequire(join(PACK_ROOT, "package.json"));
+    const p: string = name === "ffmpeg" ? req("ffmpeg-static") : req("ffprobe-static").path;
+    return p && existsSync(p) ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveBin(envVars: string[], name: "ffmpeg" | "ffprobe"): string {
+  for (const v of envVars) {
+    const fromEnv = process.env[v];
+    if (fromEnv) return fromEnv;
+  }
+  const bundled = bundledBin(name);
+  if (bundled) return bundled;
   for (const c of [`/opt/homebrew/bin/${name}`, `/usr/local/bin/${name}`]) {
     if (existsSync(c)) return c;
   }
@@ -20,11 +38,11 @@ function resolveBin(envVar: string, name: string): string {
 }
 
 export function ffmpegBin(): string {
-  return resolveBin("FFMPEG_PATH", "ffmpeg");
+  return resolveBin(["FFMPEG_PATH", "FFMPEG"], "ffmpeg");
 }
 
 export function ffprobeBin(): string {
-  return resolveBin("FFPROBE_PATH", "ffprobe");
+  return resolveBin(["FFPROBE_PATH", "FFPROBE"], "ffprobe");
 }
 
 export interface RunResult {

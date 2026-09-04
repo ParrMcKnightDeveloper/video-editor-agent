@@ -8,7 +8,7 @@ description: >
   clip into a finished reel", "do the full edit", "make this look like their
   winning ads", or a revision request on a previously delivered edit. It routes
   every stage to the right specialist skill (reel-style-clone, branded-ad-edit,
-  reel-recut, arcads-video-edit, hook-splitter, sound-design, ai-audio-sound-design,
+  reel-recut, multicam-demo-edit, hook-splitter, sound-design, ai-audio-sound-design,
   video-qa, video-review-canvas, edl-tighten, hook-variations, naming-convention,
   capcut-export) and
   owns the intake → style → edit → QA → deliver → revise loop end to end. Do
@@ -50,8 +50,13 @@ Collect before anything else:
 
 1. **Footage** — path(s) to the raw file(s). Expect them in the **projects
    directory** named in `MASTER_CONTEXT.md` (or `footage/` in a standalone setup) —
-   never move media into this pack. Run `ffprobe` on every file immediately:
-   resolution, fps, duration, audio channels. Do not assume; probe.
+   never move media into this pack. **In a cloud session (Claude Code on the web) the
+   footage arrives as a SharePoint / OneDrive sharing link**: fetch it into
+   `outputs/<slug>/` with `scripts/fetch_media.py` (see
+   [references/sharepoint-media.md](references/sharepoint-media.md)); the script
+   ffprobes the download and refuses anything that is not media. Either way, run
+   `ffprobe` on every file immediately: resolution, fps, duration, audio channels.
+   Do not assume; probe.
 2. **Optional reference reel** — a file or URL of an edit whose style should
    be cloned. If present, Stage 1 is mandatory.
 3. **Brand / site** — brand name, website URL, logo, palette if known. Check
@@ -71,7 +76,7 @@ masters, `review/`, `_qa/`.
    - the creator's **own signature reel look** (banner, karaoke captions, callouts,
      silence-cut pacing) → **reel-recut**, then Stages 4–6.
    - **multi-take screen + camera + mic recordings** (a product demo read line by line)
-     → **arcads-video-edit** (EDL base cut the reviewer locks, then its graphics pass).
+     → **multicam-demo-edit** (EDL base cut the reviewer locks, then its graphics pass).
    - **one long recording of many hooks/takes** → **hook-splitter**; an approved body
      that needs many openers → **hook-variations** (Stage 6b).
    - **AI-actor / generated footage that sounds sterile** → **ai-audio-sound-design**
@@ -106,7 +111,7 @@ Invoke **branded-ad-edit** and run its phases in order:
 2. **Transcribe** with whisper-cli (word timestamps). The transcript drives
    captions, card-per-line timing, and the storyboard beats.
 3. **Storyboard from the style guide.** Every spoken line maps to a beat:
-   card, full-bleed cut, B-roll (capture real screens with `broll-capture`; GENERATE clips/overlays with `openart-broll` (MCP) or `arcads-broll` (REST)), or breather — per `STYLE-GUIDE.md` (or house
+   card, full-bleed cut, B-roll (capture real screens with `broll-capture`; GENERATE clips/overlays with `kie-broll` (kie.ai API) or `openart-broll` (MCP)), or breather — per `STYLE-GUIDE.md` (or house
    defaults). Write the storyboard down before composing; it is the artifact
    the user approves.
 4. **Compose.** Hand-authored composition (framing, cards, cuts, motion) +
@@ -137,8 +142,8 @@ This is a loop, not a checklist. Order matters:
    One batch, many timestamps; do not snapshot one frame at a time.
 3. **LOOK at the snapshots with vision.** Actually inspect every frame:
    overlaps, cut-off text, wrong colors, captions colliding with cards, crop
-   drift. Optional deeper pass: video-qa's Gemini-based layer
-   (`GEMINI_API_KEY`) if configured.
+   drift. Optional deeper pass: video-qa's watch+listen layer (a Gemini model
+   through the Vercel AI Gateway, `AI_GATEWAY_API_KEY`) if configured.
 4. **Fix → re-check → re-snapshot** until the frames are clean.
 5. **Render** the MP4.
 6. **Verify the rendered MP4 with video-qa** — run the engine:
@@ -159,6 +164,12 @@ Invoke **video-review-canvas** to publish the video to a here.now review page
 (frame-accurate scrubber + timeline comments). Then reply to the user and
 **LEAD with the canvas URL** — first line of the reply, before any summary of
 what was done. Reviewers click the link; they do not read the recap first.
+
+In a cloud session the container disappears with the session, so also **push the
+master to the team's SharePoint library** when `MASTER_CONTEXT.md` names one
+(`scripts/fetch_media.py push … --link organization`, needs `MS_GRAPH_TOKEN`; details in
+[references/sharepoint-media.md](references/sharepoint-media.md)) and put that link
+under the canvas URL. New version = new file there too.
 
 ## Stage 6 — Revision rounds
 
@@ -223,10 +234,12 @@ draft opens before telling the user it is ready.
 | One body + many hooks → one video per hook (hook A/B batch) | hook-variations |
 | Naming a batch of deliverables so the files say what they are | naming-convention |
 | Spec-driven short-form recut style (the creator's own look, or a graphics-free raw cut) | reel-recut |
-| Multi-take screen + camera + mic demo → EDL base cut → motion-graphics pass | arcads-video-edit |
+| Multi-take screen + camera + mic demo → EDL base cut → motion-graphics pass | multicam-demo-edit |
+| Generated B-roll / overlays / stills (kie.ai API) | kie-broll |
 | One long recording of many hooks → one tightened video per hook (+ gallery canvas) | hook-splitter |
 | AI-actor footage: ambience, room reverb, bleeps, watermark whine, loudness master | ai-audio-sound-design |
-| Layered export to a CapCut draft | capcut-export |
+| Layered export to a CapCut draft (Mac only) | capcut-export |
+| Footage in / renders out of a cloud session via SharePoint or OneDrive | `scripts/fetch_media.py` + `references/sharepoint-media.md` |
 
 ## Culture rules (apply at every stage)
 

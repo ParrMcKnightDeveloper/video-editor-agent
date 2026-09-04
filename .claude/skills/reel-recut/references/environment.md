@@ -10,8 +10,9 @@
   For VAD, whisper.cpp's `whisper-vad-speech-segments` with a silero VAD ggml model.
 - **yt-dlp** (optional) — when the source is a URL (IG reel, TikTok, YouTube) rather
   than a local file, download it first and feed the local path in.
-- **OPENAI_API_KEY** (optional) — cloud Whisper word timestamps, read from a `.env`
-  at the repo root (never hardcode it). Local whisper-cli is the default route.
+- **AI_GATEWAY_API_KEY** (optional) — cloud whisper word timestamps through the Vercel AI
+  Gateway, read from a `.env` at the repo root (never hardcode it). Local whisper-cli is
+  the default route.
 - **claude-video-vision plugin** (optional) — `video_analyze` / `video_watch` for
   scene/silence/loudness analysis and frame reading. Without it, use plain ffmpeg
   frame extraction + whisper transcription; everything still works.
@@ -36,14 +37,17 @@
 - **Local (default):** `whisper-cli -m <ggml-model> -f clip.wav -ojf` writes a full
   JSON with token-level offsets; `build_reel.py`'s `load_words()` reads it directly
   (point the spec's `words` field at it).
-- **Cloud:** OpenAI API with `response_format=verbose_json` and
-  `timestamp_granularities[]=word`:
+- **Cloud:** whisper through the Vercel AI Gateway, word granularity requested via provider
+  options (the audio goes base64-inline, so keep clips short or use a 48k mono mp3):
   ```
-  curl https://api.openai.com/v1/audio/transcriptions -H "Authorization: Bearer $OPENAI_API_KEY" \
-    -F file=@clip.wav -F model=whisper-1 -F response_format=verbose_json \
-    -F "timestamp_granularities[]=word"
+  curl -X POST https://ai-gateway.vercel.sh/v4/ai/transcription-model \
+    -H "Authorization: Bearer $AI_GATEWAY_API_KEY" -H "ai-model-id: openai/whisper-1" \
+    -H "Content-Type: application/json" \
+    -d "{\"audio\":\"$(base64 -i clip.wav)\",\"mediaType\":\"audio/wav\",
+         \"providerOptions\":{\"openai\":{\"timestampGranularities\":[\"word\"]}}}"
   ```
-  Extract a sub-clip with `-ss/-t` for long sources and add the offset back.
+  The reply's `segments[]` (`text`, `startSecond`, `endSecond`) are one word each. Extract a
+  sub-clip with `-ss/-t` for long sources and add the offset back.
 
 Extract audio for any of this with:
 `ffmpeg -i clip.mp4 -ac 1 -ar 16000 -c:a pcm_s16le raw-audio.wav`

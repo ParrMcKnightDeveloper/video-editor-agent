@@ -9,11 +9,59 @@ bash scripts/check-setup.sh
 ```
 
 **MCP servers: none required.** Everything runs through the CLI (ffmpeg, node,
-python) and plain REST APIs (ElevenLabs, optional Gemini, optional here.now).
+python) and plain REST APIs — three keys cover it: **ElevenLabs** (sound), the **Vercel AI
+Gateway** (every LLM / whisper call, one key instead of OpenAI + Gemini keys), and **kie.ai**
+(generated footage), plus optional here.now for review pages.
 Two optional MCP-powered skills exist: `broll-capture` can use a **browser MCP**
 (Playwright or a browser extension) for no-code website captures — the bundled
 Puppeteer script covers the same ground without one — and `openart-broll` uses the
 **OpenArt MCP** for AI-generated footage/overlays. Everything else is MCP-free.
+
+---
+
+## Cloud / shared environment (Claude Code on the web) — nothing installed on anyone's machine
+
+This pack is meant to be opened from **claude.ai/code** by any team member, not run from one
+person's laptop. Three things make that work:
+
+1. **A SessionStart hook does the installs.** `.claude/hooks/session-start.sh` (registered in
+   `.claude/settings.json`) runs when a web session opens: `npm install` at the root pulls the
+   **bundled ffmpeg/ffprobe** (`ffmpeg-static` / `ffprobe-static` — Linux, macOS, Windows
+   builds, no apt or brew), installs the QA engine, exports `FFMPEG` / `FFPROBE` (+ `_PATH`)
+   into the session, best-effort installs the python libs, warms the HyperFrames CLI, and
+   prints this checklist. It only runs in remote sessions (`CLAUDE_CODE_REMOTE=true`); on a
+   laptop `npm run setup` does the same by hand. Once the hook is on the default branch every
+   new session gets it.
+2. **Keys are environment variables, not a file.** In the environment's settings on
+   claude.ai/code add `ELEVENLABS_API_KEY`, `AI_GATEWAY_API_KEY`, `KIE_API_KEY` (and
+   `MS_GRAPH_TOKEN` when a SharePoint push is planned) as secrets. Every script reads the
+   environment first and `.env` second, so `.env` is only for a personal machine. here.now
+   credentials work the same way (`HERENOW_*` per the here-now skill) instead of
+   `~/.herenow/credentials`.
+3. **Media comes and goes through SharePoint / OneDrive.** Footage arrives as a sharing link
+   and is fetched into `outputs/<slug>/` with
+   `.claude/skills/video-edit-pipeline/scripts/fetch_media.py fetch "<link>" --dest outputs/<slug>`;
+   the finished cut goes to the review canvas and, optionally, back to the library with
+   `fetch_media.py push`. Details, limits and the token story:
+   `video-edit-pipeline/references/sharepoint-media.md`.
+
+**Network allowlist for the environment** (Organization settings → Capabilities → Code
+execution, or the environment's policy): `registry.npmjs.org`, `github.com` +
+`objects.githubusercontent.com` (the ffmpeg-static binary download), `pypi.org` +
+`files.pythonhosted.org`, `ai-gateway.vercel.sh`, `api.elevenlabs.io`, `api.kie.ai` +
+`tempfile.aiquickdraw.com` + `kieai.redpandaai.co`, `here.now`, `*.sharepoint.com` +
+`graph.microsoft.com` + `1drv.ms` + `api.onedrive.com`. Allowlist changes apply to **new**
+sessions only.
+
+**What stays Mac-only** (say so in the report rather than failing): `hook-variations`'
+AVFoundation probe, `broll-capture` Lane C (Screen Studio), `capcut-export`. Everything on
+the main path — transcribe, compose, render, sound, QA, canvas — runs in the container.
+
+**MASTER_CONTEXT.md in cloud mode.** It is gitignored, so a fresh container starts from the
+template (the hook copies it). Keep the team's filled-in copy in the SharePoint library and
+read it in with the connector at intake, or — if this fork stays private to the team —
+commit it and remove the `.gitignore` line. Your call; the file holds brand and reviewer
+preferences, not secrets.
 
 ---
 
@@ -37,13 +85,18 @@ Runs HyperFrames, the caption generator, and the sound-design scripts.
 - CHECK: `node -v` → v20 or newer; `npx --version` prints a version.
 - FIX: install from https://nodejs.org or `brew install node`.
 
-### 2. ffmpeg + ffprobe
+### 2. ffmpeg + ffprobe (bundled — no install)
 
-Every crop, EDL cut, audio measurement, frame extraction, and QA check.
+Every crop, EDL cut, audio measurement, frame extraction, and QA check. The pack ships them
+as npm dependencies (`ffmpeg-static`, `ffprobe-static`: static builds with libx264, aac,
+ebur128, loudnorm and the detection filters), so nothing is installed on the machine.
 
-- CHECK: `ffmpeg -version | head -1` and `ffprobe -version | head -1`.
-- FIX: `brew install ffmpeg` (macOS) / your package manager. Any recent build works;
-  the skills avoid libass/drawtext on purpose, so no special build flags are needed.
+- CHECK: `eval "$(bash scripts/ffmpeg-env.sh)" && ffmpeg -version | head -1`.
+- FIX: `npm install` at the pack root (the SessionStart hook does this in cloud sessions).
+  `scripts/ffmpeg-env.sh` exports `FFMPEG` / `FFPROBE` / `FFMPEG_PATH` / `FFPROBE_PATH` and
+  prepends a PATH shim, so every script — python, bash, node — uses the same binary. An
+  explicit `FFMPEG` / `FFPROBE` env var always wins if you prefer a system build. The skills
+  avoid libass/drawtext on purpose, so no special build is needed.
 
 ### 3. HyperFrames (HTML→video renderer)
 
@@ -55,15 +108,15 @@ Installed on demand by npx — no global install.
   `gsap.min.js` the composition templates expect.
 - Optional speedup: render with `PRODUCER_BROWSER_GPU_MODE=hardware`.
 
-### 4. ELEVENLABS_API_KEY (`.env`)
+### 4. ELEVENLABS_API_KEY (env var, or `.env` on a personal machine)
 
 Sound design: SFX generation (`/v1/sound-generation`) and music beds (`/v1/music`).
 
-- CHECK: `grep -c "^ELEVENLABS_API_KEY=.\+" .env` → 1.
-- FIX: `cp .env.example .env`, paste your key from https://elevenlabs.io
-  (Profile → API Keys). The scripts read it from `.env` / the environment; it is
-  never hardcoded. Generation spends ElevenLabs credits — the agent announces
-  before spending.
+- CHECK: `test -n "$ELEVENLABS_API_KEY" || grep -c "^ELEVENLABS_API_KEY=.\+" .env` → set.
+- FIX: cloud — add it as a secret in the environment settings on claude.ai/code; laptop —
+  `cp .env.example .env` and paste the key from https://elevenlabs.io (Profile → API
+  Keys). The scripts read the environment first, then `.env`; it is never hardcoded.
+  Generation spends ElevenLabs credits — the agent announces before spending.
 
 ### 5. Transcription (bundled — verify once)
 
@@ -74,6 +127,7 @@ whisper models — no separate install.
 - CHECK: `npx hyperframes transcribe --help` exits 0.
 - Optional: a standalone `whisper-cli` (`brew install whisper-cpp`) + a ggml model
   makes `video-qa` L2 seam re-probes faster, but is not required.
+- Cloud fallback: whisper through the Vercel AI Gateway (§8) — no OpenAI key needed.
 
 ### 6. python3
 
@@ -108,14 +162,22 @@ notes back. Without it, deliver cuts as files and collect notes as text.
 - FIX: install the here-now skill and sign in once. Its agent docs are UA-gated:
   fetch https://here.now/docs with header `User-Agent: claude`.
 
-### 8. GEMINI_API_KEY (`.env`) — video-qa Layer 3
+### 8. AI_GATEWAY_API_KEY (`.env`) — Vercel AI Gateway: video-qa Layer 3 + cloud whisper
 
-A multimodal model watches+listens to a 480p proxy of the render and flags
-candidate issues. Skipped gracefully when unset; QA layers 1/2/4 still run.
+One key for every hosted-model call. video-qa's Layer 3 sends a 480p proxy of the render
+(audio intact) to a Gemini model through the gateway and gets schema-enforced JSON back;
+the same key serves the cloud whisper fallback (`tools/video-qa`, `hook-splitter`'s
+`transcribe.py`, `multicam-demo-edit`'s per-shot `transcribe-shots.mjs`) when local
+whisper.cpp is unavailable. Skipped gracefully when unset; QA layers 1/2/4 still run.
 
-- CHECK: `grep -c "^GEMINI_API_KEY=.\+" .env` → 1 (or accept the skip).
-- FIX: key from https://aistudio.google.com. Model override: `GEMINI_QA_MODEL`
-  (default `gemini-flash-latest`).
+- CHECK: `grep -c "^AI_GATEWAY_API_KEY=.\+" .env` → 1, then
+  `npm --prefix tools/video-qa run qa:check` → `READY` (key present, both model ids exist on
+  the gateway, the QA model accepts file input).
+- FIX: create a key in the Vercel dashboard → AI Gateway → API keys; paste it into `.env`.
+  Model overrides: `VIDEO_QA_MODEL` (default `google/gemini-3.6-flash` — keep a Gemini id,
+  the family that takes video + audio) and `VIDEO_QA_TRANSCRIBE_MODEL` (default
+  `openai/whisper-1`). `GET https://ai-gateway.vercel.sh/v1/models` lists what is available.
+  Spend shows per key in Vercel; an L3 pass on a 60 s ad is cents.
 
 ### 9. Website capture (broll-capture)
 
@@ -135,21 +197,19 @@ candidate issues. Skipped gracefully when unset; QA layers 1/2/4 still run.
   Code MCP settings). No API key — auth rides on the connection. Generation spends
   OpenArt credits; the skill quotes with `openart_model_cost` and asks before firing.
 
-### 10b. Arcads API (arcads-broll) — generated B-roll & motion graphics
+### 10b. KIE_API_KEY (`.env`) — kie.ai generated B-roll, overlays & stills (kie-broll)
 
-- CHECK: `grep -c "^ARCADS_API_KEY=.\+" .env` → 1, and the companion pack cloned:
-  `git clone https://github.com/krusemediallc/arcads-claude-code` (its
-  `arcads-external-api` skill carries the routes + per-model prompt library).
-- FIX: key from your Arcads account (sign up: https://arcads.ai/?via=claude-code).
-  Generation spends Arcads credits — the skill estimates and asks before firing.
+Seedance, Kling, Wan, Hailuo, Nano Banana, GPT Image and more behind one job API and one
+prepaid wallet. `kie-broll/scripts/kie_gen.py` submits, polls and downloads.
 
-### 10c. OPENAI_API_KEY (`.env`) — cloud whisper fallback
-
-Used only when whisper.cpp is unavailable: the QA engine's transcriber, `hook-splitter`'s
-`transcribe.py`, and `arcads-video-edit`'s per-shot transcripts.
-
-- CHECK: `grep -c "^OPENAI_API_KEY=.\+" .env` → 1 (or accept local whisper only).
-- FIX: key from https://platform.openai.com. Transcription spends API credits.
+- CHECK: `grep -c "^KIE_API_KEY=.\+" .env` → 1, then
+  `python3 .claude/skills/kie-broll/scripts/kie_gen.py preflight` → `OK`.
+- FIX: key from https://kie.ai/api-key, wallet funded. In a sandboxed session the hosts
+  `api.kie.ai`, `tempfile.aiquickdraw.com` and `kieai.redpandaai.co` each need an allowlist
+  entry. kie.ai has no quote endpoint: the skill reads the per-clip price off the model page,
+  states it, and asks before every generation. Model ids and input fields differ per family —
+  `kie-broll/references/models.md` is the running record; confirm on
+  https://docs.kie.ai/market before the first call on a new model.
 
 ### 11. pyJianYingDraft venv — capcut-export (work-in-progress)
 

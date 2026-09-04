@@ -11,8 +11,9 @@ CHEAP    L1  ffprobe/ffmpeg technical (blackdetect, freezedetect, flash frames,
          L2  transcript edit-boundary checks on EVERY dialogue cut
              (clipped words, duplicate phrases, seam dead-air, caption coverage,
              butt-splice clicks) + isolated seam re-probes
-         L3  Gemini watches AND listens to a 480p proxy (audio intact @128k),
-             5fps sampling, enforced JSON schema — tells Claude WHERE to look
+         L3  a multimodal model (Gemini Flash via the Vercel AI Gateway) watches AND
+             listens to a 480p proxy (audio intact @128k), enforced JSON schema —
+             tells Claude WHERE to look
 EXPENSIVE L4 inspection packets: contact sheet + marked waveform + word-level
              transcript + audio stats for a specific window — Claude verifies
              before changing any edit
@@ -43,19 +44,22 @@ npm run qa:video -- --manifest <project>/spec.qa-manifest.json --words <project>
 npm run qa:video -- --lane hyperframes --video out.mp4 --edl edl.json \
     --words words-master.json --words-are-output [--placement preview/manifest.json]
 
-# any mp4, no manifest (L1 + Gemini only):
+# any mp4, no manifest (L1 + L3 only):
 npm run qa:video -- --video out.mp4
 
 # targeted inspection packet:
 npm run qa:inspect -- --manifest spec.qa-manifest.json --start 31.5 --end 33.0
 
+# is the AI Gateway wired up? (key present, configured model ids exist, file input ok)
+npm run qa:check
+
 # tests (fixtures generate on first run; clean.mp4 is the false-positive canary):
 npm run qa:test
 ```
 
-Flags: `--skip-semantic` (no Gemini), `--fps N` (Gemini sampling), `--no-cache`,
-`--instructions file.txt` (original request → given to Gemini), `--json`,
-`--out dir`. Exit codes: **0** PASS · **1** PASS_WITH_WARNINGS · **2** FAIL.
+Flags: `--skip-semantic` (no L3 model call), `--fps N` (frame rate of the 480p proxy
+sent to the model, default 15), `--no-cache`, `--instructions file.txt` (original
+request → given to the model), `--json`, `--out dir`. Exit codes: **0** PASS · **1** PASS_WITH_WARNINGS · **2** FAIL.
 Reports land in `<video dir>/_qa/<video stem>/qa-report.{json,md}` with inspection
 packets under `inspect/<issue-id>/`. If an agent sandbox kills Node, run with it disabled.
 
@@ -116,19 +120,31 @@ escalate. Never loop on LOW or subjective issues.
   false-positive canary.
 - A repaired branded edit: PASS_WITH_WARNINGS (quiet −21 LUFS master + one splice
   click — both real observations).
-- The same edit pre-fix (known-dirty): Gemini heard BOTH documented seam flubs
+- The same edit pre-fix (known-dirty): the L3 model heard BOTH documented seam flubs
   (a "Because…" false-start, a re-take clip).
 - Silence-derived cuts (reel-recut `silence_cut`) cannot clip audible speech —
   word "overlap" there is whisper end-padding; only probe-confirmed misses flag.
-- Gemini 503s are retried ×3 with backoff, then the layer degrades to `skipped`
-  with the reason in the report — never a crash.
+- Gateway 429/502/503/504s are retried ×3 with backoff, then the layer degrades to
+  `skipped` with the reason in the report — never a crash.
 
 ## Env (`.env`)
 
-`GEMINI_API_KEY` (Layer 3; everything else runs without it) ·
-`GEMINI_QA_MODEL` (default `gemini-flash-latest`) · `VIDEO_QA_GEMINI_FPS` ·
-`VIDEO_QA_INSPECT_PADDING_S` (default 1.5) · `VIDEO_QA_MAX_REPAIR_ITERATIONS`
-(default 3) · `VIDEO_QA_TRANSCRIBER` (`auto`→whisper.cpp via
-`npx hyperframes transcribe`, falls back to OpenAI word-granularity whisper —
-`OPENAI_API_KEY`) · `VIDEO_QA_CACHE_DIR` (default `tools/video-qa/.qa-cache/`) ·
+All hosted-model calls go through the **Vercel AI Gateway** — one key, `provider/model`
+ids, spend visible in the Vercel dashboard. Nothing here calls Google or OpenAI directly.
+
+`AI_GATEWAY_API_KEY` (Layer 3 + the cloud transcriber; everything else runs without it;
+`VERCEL_OIDC_TOKEN` is honoured too) · `VIDEO_QA_MODEL` (L3 model, default
+`google/gemini-3.6-flash` — keep it on a Gemini id, the family that takes video + audio;
+`npm run qa:check` lists what the gateway offers) · `VIDEO_QA_TRANSCRIBE_MODEL` (default
+`openai/whisper-1`) · `AI_GATEWAY_BASE_URL` (default `https://ai-gateway.vercel.sh`) ·
+`VIDEO_QA_PROXY_FPS` (default 15) · `VIDEO_QA_PROXY_MAX_MB` (default 18 — the proxy is
+attached inline as base64; bigger renders are re-encoded smaller once, then L3 skips with
+a reason) · `VIDEO_QA_INSPECT_PADDING_S` (default 1.5) · `VIDEO_QA_MAX_REPAIR_ITERATIONS`
+(default 3) · `VIDEO_QA_TRANSCRIBER` (`auto`→whisper.cpp via `npx hyperframes transcribe`,
+falls back to `gateway` — whisper through the AI Gateway with word-level timestamps;
+`whispercpp` / `none` pin it) · `VIDEO_QA_CACHE_DIR` (default `tools/video-qa/.qa-cache/`) ·
 `FFMPEG_PATH` / `FFPROBE_PATH` (default: PATH, then /opt/homebrew/bin, /usr/local/bin).
+
+Cost note: an L3 call bills the proxy's video+audio tokens plus the JSON reply on the
+Gemini model; a transcription bills per audio minute on whisper. Both show up under the
+gateway key in Vercel.

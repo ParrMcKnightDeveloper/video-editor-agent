@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "4-layer QA engine for rendered video edits: ffmpeg technical checks, transcript seam checks through the EDL, an optional Gemini watch+listen pass, and inspection packets.",
+  "description": "4-layer QA engine for rendered video edits: ffmpeg technical checks, transcript seam checks through the EDL, an optional multimodal watch+listen pass through the Vercel AI Gateway, and inspection packets.",
   "scripts": {
     "qa:video": "tsx cli/qa-video.ts",
     "qa:inspect": "tsx cli/inspect-video.ts",
+    "qa:check": "tsx cli/check-gateway.ts",
     "test": "tsx --test src/__tests__/*.test.ts",
     "typecheck": "tsc --noEmit"
   },

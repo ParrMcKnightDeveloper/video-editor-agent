@@ -93,6 +93,7 @@ cached old cut. Delete the superseded files; verify the old name 404s.
 
 Requires: ffmpeg/ffprobe (PATH, or `FFMPEG`/`FFPROBE` env vars), `whisper-cli` +
 `ggml-large-v3.bin` (`WHISPER_CLI`/`WHISPER_MODEL`), `whisper-vad-speech-segments` + a
-silero VAD model (`VAD_BIN`/`VAD_MODEL`), numpy, `OPENAI_API_KEY` for `transcribe.py`, and
+silero VAD model (`VAD_BIN`/`VAD_MODEL`), numpy, `AI_GATEWAY_API_KEY` for `transcribe.py`
+(whisper word timestamps through the Vercel AI Gateway), and
 here.now credentials for the gallery canvas. If an agent sandbox kills ffmpeg, re-run with
 the sandbox disabled.

@@ -197,15 +197,18 @@ describe("cache keys", () => {
 });
 
 describe("layer 3 — graceful degradation", () => {
-  it("skips cleanly without GEMINI_API_KEY", async () => {
-    const saved = process.env.GEMINI_API_KEY;
-    delete process.env.GEMINI_API_KEY;
+  it("skips cleanly without AI_GATEWAY_API_KEY", async () => {
+    const saved = process.env.AI_GATEWAY_API_KEY;
+    const savedOidc = process.env.VERCEL_OIDC_TOKEN;
+    delete process.env.AI_GATEWAY_API_KEY;
+    delete process.env.VERCEL_OIDC_TOKEN;
     try {
       const r = await runSemanticLayer(baseManifest(join(GEN_DIR, "clean.mp4")), { log: quiet });
       assert.equal(r.status, "skipped");
-      assert.match(r.reason ?? "", /GEMINI_API_KEY/);
+      assert.match(r.reason ?? "", /AI_GATEWAY_API_KEY/);
     } finally {
-      if (saved) process.env.GEMINI_API_KEY = saved;
+      if (saved) process.env.AI_GATEWAY_API_KEY = saved;
+      if (savedOidc) process.env.VERCEL_OIDC_TOKEN = savedOidc;
     }
   });
 });

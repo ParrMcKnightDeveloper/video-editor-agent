@@ -120,7 +120,7 @@ export type LayerStatus = "pass" | "warn" | "fail" | "skipped" | "degraded";
 
 export interface LayerResult {
   status: LayerStatus;
-  /** Populated for skipped/degraded (e.g. "GEMINI_API_KEY not set"). */
+  /** Populated for skipped/degraded (e.g. "AI_GATEWAY_API_KEY not set"). */
   reason?: string;
   issues: QaIssue[];
   stats?: Record<string, unknown>;
@@ -147,5 +147,5 @@ export interface QaReport {
   summary: Record<Severity, number>;
 }
 
-/** Bump when detection logic / the Gemini rubric changes — part of the cache key. */
-export const QA_PROMPT_VERSION = "1";
+/** Bump when detection logic / the L3 rubric or transport changes — part of the cache key. */
+export const QA_PROMPT_VERSION = "2";

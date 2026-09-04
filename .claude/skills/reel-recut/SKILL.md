@@ -55,7 +55,7 @@ master is not silently downsampled to 30 on the way to their editor.
   Do not hand-build a 30-input filtergraph — it can OOM a 16 GB machine. The script handles this.
 - If an agent sandbox kills ffmpeg (SIGURG / odd exit codes), re-run with the sandbox disabled.
 - ffmpeg/ffprobe come from PATH (override with `FFMPEG`/`FFPROBE` env vars). Local
-  transcription uses whisper-cli + a ggml model; cloud Whisper needs `OPENAI_API_KEY`
+  transcription uses whisper-cli + a ggml model; cloud whisper runs through the Vercel AI Gateway (`AI_GATEWAY_API_KEY`)
   in a `.env` at the repo root.
 
 ## Workflow

@@ -43,6 +43,9 @@ empty fields get offered for population as work reveals the answers.
   `<projects dir>/<project-slug>/` and never move media into this pack)
 - **Per-project layout conventions:** (e.g. `source.mp4`, `output-vN.mp4`, `review/`, `_qa/`)
 - **Raw footage queue(s):** (where new recordings land)
+- **SharePoint / OneDrive library for media** (cloud sessions): (site + library name, the
+  `driveId` and the folder `itemId` for finished masters — from the Microsoft 365 connector;
+  whether sharing links are org-only, which means `MS_GRAPH_TOKEN` is needed to fetch)
 - **Named past edits** (for "edit it like X" requests): (slug → what it was)
 
 ## Hard rules (the regimes this reviewer holds you to)
@@ -64,8 +67,12 @@ empty fields get offered for population as work reveals the answers.
 ## Machine and credentials
 
 - **Binaries:** (ffmpeg/ffprobe/whisper paths if not on PATH; sandbox quirks; GPU render flag)
-- **Where each key lives:** (which `.env` holds ELEVENLABS_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY /
-  ARCADS_*; never paste the values here — paths only)
+- **Where each key lives:** (which `.env` holds ELEVENLABS_API_KEY / AI_GATEWAY_API_KEY /
+  KIE_API_KEY; never paste the values here — paths only)
+- **Gateway model choices:** (VIDEO_QA_MODEL / VIDEO_QA_TRANSCRIBE_MODEL overrides, if any,
+  and why)
+- **kie.ai models that worked:** (model id → fields → typical per-clip cost, as you confirm them;
+  mirror into `kie-broll/references/models.md` when generic)
 
 ## Learnings
 

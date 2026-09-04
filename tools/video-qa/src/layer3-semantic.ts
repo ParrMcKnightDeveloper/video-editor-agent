@@ -1,23 +1,26 @@
 /**
- * Layer 3 — whole-video semantic QA: Gemini WATCHES AND LISTENS to the render.
+ * Layer 3 — whole-video semantic QA: a multimodal model WATCHES AND LISTENS to the
+ * render, reached through the Vercel AI Gateway (one key, `provider/model` ids).
  *
  * - Sends a compressed proxy (480p) with the AUDIO INTACT at 128k AAC — half of
  *   real editing mistakes are audible.
- * - Frame sampling rate is set via video_metadata.fps (default 5 for short ads;
- *   Gemini's 1fps default misses fast visual events).
- * - JSON output is ENFORCED via responseSchema, not prompt-please.
- * - Gemini timestamps are approximate (±1–2s); issues get padded windows and
- *   anchor to the nearest manifest event. Gemini's job is to tell Claude WHERE
+ * - The proxy travels as a base64 `file` content part on an OpenAI-compatible chat
+ *   completion; the gateway forwards it to the model (default: a Gemini Flash, the
+ *   family that takes video + audio). Oversized proxies are re-encoded smaller
+ *   once, then the layer skips with a reason rather than failing the run.
+ * - JSON output is ENFORCED via response_format json_schema, not prompt-please.
+ * - Model timestamps are approximate (±1–2s); issues get padded windows and
+ *   anchor to the nearest manifest event. The model's job is to tell Claude WHERE
  *   to look — Layer 4 verifies before anything is changed.
- * - Graceful skip when GEMINI_API_KEY is missing.
+ * - Graceful skip when AI_GATEWAY_API_KEY is missing.
  */
 import { mkdtempSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EditManifest, LayerResult, QaIssue, Severity } from "./types";
 import { ffmpegBin, ffprobeJson, runCapture } from "./ffmpeg";
-import { geminiGenerateJson, geminiKey, geminiModel, uploadFileToGemini, type GeminiPart } from "./gemini";
+import { gatewayGenerateJson, gatewayKey, qaModel, type GatewayContentPart } from "./gateway";
 import { nearestEvent } from "./manifest/schema";
 
 const RESPONSE_SCHEMA = {
@@ -62,7 +65,7 @@ const RESPONSE_SCHEMA = {
   required: ["issues"],
 };
 
-interface GeminiIssue {
+interface ModelIssue {
   startSec: number;
   endSec: number;
   severity: "high" | "medium" | "low";
@@ -72,8 +75,8 @@ interface GeminiIssue {
   description: string;
 }
 
-interface GeminiReview {
-  issues: GeminiIssue[];
+interface ModelReview {
+  issues: ModelIssue[];
   overallNotes?: string;
 }
 
@@ -118,7 +121,7 @@ function manifestSummary(manifest: EditManifest): string {
 function buildPrompt(manifest: EditManifest, instructions?: string): string {
   return [
     "You are a professional short-form video editor doing final QA on an export before it ships.",
-    "The file has BOTH video and audio. Review them TOGETHER — listen while you watch. Roughly half of real editing mistakes are audible, not visible (clipped words at cuts, duplicate phrases, abrupt music, dead air, clicks at splices, SFX drowning the voice).",
+    "The attached file has BOTH video and audio. Review them TOGETHER — listen while you watch. Roughly half of real editing mistakes are audible, not visible (clipped words at cuts, duplicate phrases, abrupt music, dead air, clicks at splices, SFX drowning the voice).",
     "",
     "Report across both modalities:",
     "- VISUAL: glitches, stray/duplicate frames, wrong or repeated footage, jarring transitions, bad crop or framing, subject cut off, graphics appearing/disappearing at wrong times, captions covering the speaker's face, caption timing/text problems, unintended blank space, abrupt start or ending, b-roll that doesn't match what is being said.",
@@ -139,20 +142,21 @@ function buildPrompt(manifest: EditManifest, instructions?: string): string {
   ].join("\n");
 }
 
-async function makeProxy(video: string, outPath: string): Promise<void> {
+/** 480p proxy with the audio intact. `fps` is the encoded frame rate; `crf` trades size. */
+async function makeProxy(video: string, outPath: string, fps: number, crf: number): Promise<void> {
   await runCapture(ffmpegBin(), [
     "-nostdin",
     "-y",
     "-i",
     video,
     "-vf",
-    "scale=-2:480,fps=15",
+    `scale=-2:480,fps=${fps}`,
     "-c:v",
     "libx264",
     "-preset",
     "veryfast",
     "-crf",
-    "30",
+    String(crf),
     "-c:a",
     "aac",
     "-b:a",
@@ -163,6 +167,11 @@ async function makeProxy(video: string, outPath: string): Promise<void> {
   ]);
 }
 
+/** Inline (base64) attachments have a request-size ceiling; keep the proxy under it. */
+function proxyMaxBytes(): number {
+  return Number(process.env.VIDEO_QA_PROXY_MAX_MB || 18) * 1024 * 1024;
+}
+
 const sevMap: Record<string, Severity> = { high: "HIGH", medium: "MEDIUM", low: "LOW" };
 
 export async function runSemanticLayer(
@@ -170,40 +179,55 @@ export async function runSemanticLayer(
   opts: { instructions?: string; fps?: number; log?: (m: string) => void } = {}
 ): Promise<LayerResult> {
   const log = opts.log ?? (() => {});
-  if (!geminiKey()) {
-    log("[qa:L3] semantic QA skipped — GEMINI_API_KEY not set");
-    return { status: "skipped", reason: "GEMINI_API_KEY not set", issues: [] };
+  if (!gatewayKey()) {
+    log("[qa:L3] semantic QA skipped — AI_GATEWAY_API_KEY not set");
+    return { status: "skipped", reason: "AI_GATEWAY_API_KEY not set", issues: [] };
   }
 
   const probe = await ffprobeJson(manifest.video);
   const duration = parseFloat(probe.format.duration ?? "0");
   const fps =
-    opts.fps ??
-    (process.env.VIDEO_QA_GEMINI_FPS ? Number(process.env.VIDEO_QA_GEMINI_FPS) : duration < 180 ? 5 : 1);
+    opts.fps ?? (process.env.VIDEO_QA_PROXY_FPS ? Number(process.env.VIDEO_QA_PROXY_FPS) : 15);
 
   const dir = mkdtempSync(join(tmpdir(), "vqa-proxy-"));
   const proxyPath = join(dir, "proxy.mp4");
   try {
-    log(`[qa:L3] building 480p proxy (audio intact @128k)`);
-    await makeProxy(manifest.video, proxyPath);
-    log(`[qa:L3] uploading proxy; gemini reviewing ${duration.toFixed(1)}s @ ${fps}fps sampling (audio included)`);
-    const file = await uploadFileToGemini(proxyPath, "video/mp4", "qa-proxy.mp4", log);
+    log(`[qa:L3] building 480p proxy @ ${fps}fps (audio intact @128k)`);
+    await makeProxy(manifest.video, proxyPath, fps, 30);
+    let size = (await stat(proxyPath)).size;
+    if (size > proxyMaxBytes()) {
+      log(`[qa:L3] proxy is ${(size / 1e6).toFixed(1)} MB — re-encoding smaller for the inline attachment limit`);
+      await makeProxy(manifest.video, proxyPath, Math.min(fps, 8), 36);
+      size = (await stat(proxyPath)).size;
+      if (size > proxyMaxBytes()) {
+        return {
+          status: "skipped",
+          reason: `proxy ${(size / 1e6).toFixed(1)} MB exceeds VIDEO_QA_PROXY_MAX_MB (${proxyMaxBytes() / 1024 / 1024}); QA the render in shorter sections`,
+          issues: [],
+        };
+      }
+    }
 
-    const parts: GeminiPart[] = [
+    log(`[qa:L3] sending ${(size / 1e6).toFixed(1)} MB proxy to ${qaModel()} via the AI Gateway; reviewing ${duration.toFixed(1)}s (audio included)`);
+    const parts: GatewayContentPart[] = [
       {
-        file_data: { file_uri: file.uri, mime_type: "video/mp4" },
-        video_metadata: { fps },
+        type: "file",
+        file: {
+          data: (await readFile(proxyPath)).toString("base64"),
+          media_type: "video/mp4",
+          filename: "qa-proxy.mp4",
+        },
       },
-      { text: buildPrompt(manifest, opts.instructions) },
+      { type: "text", text: buildPrompt(manifest, opts.instructions) },
     ];
 
-    let review: GeminiReview;
+    let review: ModelReview;
     try {
-      review = await geminiGenerateJson<GeminiReview>(parts, RESPONSE_SCHEMA);
+      review = await gatewayGenerateJson<ModelReview>(parts, RESPONSE_SCHEMA);
     } catch (e) {
       return {
         status: "skipped",
-        reason: `Gemini call failed: ${(e as Error).message.slice(0, 300)}`,
+        reason: `gateway call failed: ${(e as Error).message.slice(0, 300)}`,
         issues: [],
       };
     }
@@ -215,7 +239,7 @@ export async function runSemanticLayer(
       return {
         id: `L3-${gi.category}-${String(i + 1).padStart(3, "0")}`,
         source: "semantic",
-        // Gemini alone never exceeds HIGH; corroboration is applied in report.ts.
+        // The model alone never exceeds HIGH; corroboration is applied in report.ts.
         severity: sevMap[gi.severity] ?? "LOW",
         category: gi.category,
         eventId: anchor?.id ?? null,
@@ -223,15 +247,15 @@ export async function runSemanticLayer(
         message: gi.description,
         objective: gi.objective,
         confidence: gi.confidence,
-        evidence: { geminiReported: [gi.startSec, gi.endSec], model: geminiModel() },
+        evidence: { modelReported: [gi.startSec, gi.endSec], model: qaModel() },
       };
     });
 
-    log(`[qa:L3] gemini identified ${issues.length} possible issue(s)`);
+    log(`[qa:L3] ${qaModel()} identified ${issues.length} possible issue(s)`);
     return {
       status: issues.some((i) => i.severity === "HIGH") ? "fail" : issues.length ? "warn" : "pass",
       issues,
-      stats: { model: geminiModel(), fps, overallNotes: review.overallNotes, proxyDuration: duration },
+      stats: { model: qaModel(), proxyFps: fps, proxyBytes: size, overallNotes: review.overallNotes, proxyDuration: duration },
     };
   } finally {
     await rm(dir, { recursive: true, force: true });

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Render the Arcads ad from edl.json. 9:16, no graphics, layout + hard silence cuts.
+"""Render the base cut from edl.json. 9:16, no graphics, layout + hard silence cuts.
+Output: <project>/demo-ad-v1.mp4 (override the basename with OUT_NAME).
 
 Each segment carries a `keep` list of sub-ranges (written by tighten.py); every range is
 trimmed out of the source and concatenated, so the pauses inside a take disappear and the
@@ -235,7 +236,7 @@ subprocess.run([FF, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst
 durs = [seg_frames(p) / FPS for p in made]
 print(f"video: {sum(seg_frames(p) for p in made)} frames = {sum(durs):.3f}s")
 wav = build_audio(os.path.join(SEG, "_audio.wav"), durs)
-final = os.path.join(BASE, "arcads-ad-v1.mp4")
+final = os.path.join(BASE, os.environ.get("OUT_NAME", "demo-ad-v1.mp4"))
 meas = subprocess.run([FF, "-hide_banner", "-i", wav, "-af",
                        "loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"],
                       capture_output=True, text=True).stderr

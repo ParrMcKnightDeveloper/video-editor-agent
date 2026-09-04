@@ -7,8 +7,8 @@ description: >
   product/scene beats, and flat-black overlay clips generated per spoken line. Use
   when an edit needs generated footage or overlays and the OpenArt MCP is connected
   ("openart", "seedance", "generate an overlay/b-roll clip", "AI clip of me saying
-  X"). NOT for capturing real websites (broll-capture), Arcads-backed generation
-  (arcads-broll), or hand-authored composition cards (branded-ad-edit).
+  X"). NOT for capturing real websites (broll-capture), kie.ai API generation
+  (kie-broll), or hand-authored composition cards (branded-ad-edit).
 ---
 
 # OpenArt B-roll & Motion Graphics (MCP)
@@ -90,7 +90,7 @@ Give the model a reference video of the subject and direct new footage:
   trip on the SPOKEN LINE itself (`output_moderation_blocked` / "output audio may
   be related to copyright restrictions"). No-music guard clauses do NOT fix it —
   **reword the line**. Failed runs bill 0, so it's cheap to iterate.
-- Whole-timeline b-roll beats follow the same grammar as `arcads-broll`: generate
+- Whole-timeline b-roll beats follow the same grammar as `kie-broll`: generate
   at the edit's aspect, slightly longer than the beat, match the grade, trim to
   the best 1.5–6s, QA hands/text/products, ~2 retries budget.
 

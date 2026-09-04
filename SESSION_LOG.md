@@ -1,5 +1,72 @@
 # SESSION LOG — Video Editor Agent
 
+## 2026-09-03 — Fork set up for a new owner: Vercel AI Gateway + kie.ai replace OpenAI/Gemini keys and Arcads
+
+**Decision (the user):** run this pack on three keys — ElevenLabs (unchanged), one **Vercel AI
+Gateway** key for every LLM/whisper call instead of separate OpenAI and Gemini keys, and
+**kie.ai** for generated footage instead of Arcads.
+
+**Done**
+- `tools/video-qa`: `gemini.ts` + `openai-transcribe.ts` → `gateway.ts` (plain fetch). L3 now
+  attaches the 480p proxy as a base64 `file` part on an OpenAI-compatible chat completion with
+  `response_format: json_schema` (model `VIDEO_QA_MODEL`, default `google/gemini-3.6-flash`);
+  oversized proxies re-encode once, then skip with a reason. The cloud transcriber calls
+  `POST /v4/ai/transcription-model` with `providerOptions.openai.timestampGranularities=['word']`
+  and refuses sentence-level results rather than feeding them to the clipped-word check.
+  `VIDEO_QA_TRANSCRIBER=openai` still works as an alias for `gateway`. New `qa:check` CLI reads the
+  public `/v1/models` list and confirms the configured ids. Rubric version bumped (cache key).
+  Typecheck clean; the fixture tests need ffmpeg, which the setup sandbox lacked — run
+  `npm --prefix tools/video-qa test` locally.
+- New skill **`kie-broll`** (replaces `arcads-broll`): `scripts/kie_gen.py` (stdlib python) drives
+  `createTask`/`recordInfo`, uploads local refs, polls, downloads, logs spend; model-agnostic
+  (`--set key=value`) because kie.ai's ids and field names differ per family — `references/models.md`
+  is the running record and the cost gate is manual (no quote endpoint).
+- `arcads-video-edit` → **`multicam-demo-edit`**: vendor-neutral name/description/provenance, the
+  Arcads generator removed in favour of `kie-broll`, `transcribe-shots.ts` (which imported a
+  service that never existed in this repo) rewritten as a self-contained `transcribe-shots.mjs`
+  on the gateway, output names `demo-ad-vN.mp4` (`OUT_NAME`, `CUT` env overrides). The shipped
+  `build-comp.mjs` template and the brand-safety case study still describe the original ad.
+- `hook-splitter/transcribe.py` and `reel-recut`/`ai-audio-sound-design` docs moved to the gateway;
+  `video-qa` SKILL + `layer3-semantic.md` rewritten for the new transport; pipeline routing updated.
+- Setup surface: `.env.example`, SETUP.md (§5, §8, §10b), `check-setup.sh` (flags stale
+  GEMINI/OPENAI/ARCADS keys), README, ARCHITECTURE, CLAUDE.md, MASTER_CONTEXT template.
+
+**Same day, second pass — cloud-first: nothing installed on anyone's machine**
+
+**Decision (the user):** other people must be able to open this repo from claude.ai/code and
+use it; media lives in SharePoint / OneDrive.
+
+- **ffmpeg/ffprobe are npm dependencies now** (root `package.json`: `ffmpeg-static`,
+  `ffprobe-static` — static builds verified to carry libx264, aac, ebur128, loudnorm,
+  silencedetect, blackdetect, freezedetect). `scripts/ffmpeg-env.sh` resolves env → bundled →
+  PATH, exports the four variables every script already reads, and adds a `.bin/` PATH shim
+  for bare `ffmpeg` calls. The QA engine's resolver checks the bundled build before Homebrew.
+  `check-setup.sh` counts the bundled build as PASS and reads keys from the environment first.
+- **SessionStart hook** (`.claude/hooks/session-start.sh`, registered in `.claude/settings.json`,
+  remote-only): npm installs, ffmpeg env into `CLAUDE_ENV_FILE`, best-effort pillow/numpy/scipy,
+  HyperFrames warm-up, MASTER_CONTEXT from the template, checklist. Synchronous on purpose.
+- **SharePoint/OneDrive bridge**: `video-edit-pipeline/scripts/fetch_media.py` — `fetch` a sharing
+  link (download=1 for SharePoint links, public shares API for OneDrive personal, Graph shares
+  API when `MS_GRAPH_TOKEN` is set), ffprobe-verify, refuse HTML sign-in pages; `push` a master
+  through a Graph upload session in 10 MiB chunks (+ optional view link). Documented in
+  `references/sharepoint-media.md`; Stage 0 and Stage 5 of the pipeline point at it. The
+  connector's own upload caps at 1 MB, so it is for text artefacts only.
+- Mac-only lanes flagged in place (hook-variations probe, broll-capture Lane C, capcut-export).
+  SETUP.md gained a "Cloud / shared environment" section with the network allowlist.
+
+**Lesson kept:** in the setup sandbox `apt` was blocked but the npm registry and GitHub
+releases were not — package the binary as a dependency instead of documenting an install.
+
+**Open until the first live run**
+- `fetch_media.py` routes are built from Microsoft's documented link forms; the first fetch of
+  a real org link (with and without a token) is the proof. The Graph upload session is
+  documented behaviour, not yet exercised from this pack.
+- The gateway's acceptance of a `video/mp4` file part on a Gemini model is documented behaviour for
+  file input, not yet exercised from this pack (the sandbox could not reach the gateway or kie.ai).
+  First real `qa:video` run with a key is the proof; the layer degrades to `skipped` if rejected.
+- kie.ai video model input fields: only Kling 3.0's are recorded from the docs; verify Seedance
+  fields on the model page before the first spend and log them in `references/models.md`.
+
 ## 2026-09-02 — This pack becomes the only home for video editing; the working repo symlinks in
 
 **Decision (the user):** every video-editing skill, script and process lives here, and only

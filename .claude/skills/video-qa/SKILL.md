@@ -7,8 +7,9 @@ description: >-
   loudness (LUFS) or clipping problems, confirm a fix after a re-render, or build an
   inspection packet (contact sheet + waveform + transcript) for a suspect timestamp.
   L1 = ffmpeg/ffprobe technical checks, L2 = transcript edit-boundary checks mapped through
-  the EDL, L3 = optional Gemini watch+listen pass on a 480p proxy, L4 = targeted inspection
-  packets. Needs only ffmpeg/ffprobe; whisper and GEMINI_API_KEY unlock the deeper layers.
+  the EDL, L3 = optional multimodal watch+listen pass on a 480p proxy (a Gemini model through
+  the Vercel AI Gateway), L4 = targeted inspection packets. Needs only ffmpeg/ffprobe; whisper
+  and AI_GATEWAY_API_KEY unlock the deeper layers.
 ---
 
 # video-qa — 4-layer QA for rendered video edits
@@ -51,8 +52,9 @@ npm --prefix tools/video-qa run qa:video -- --video <p>/out.mp4
 npm --prefix tools/video-qa run qa:inspect -- --manifest <p>/spec.qa-manifest.json --start 31.5 --end 33.0
 ```
 
-Flags: `--skip-semantic` (no Gemini), `--fps N`, `--instructions file.txt` (the original
-brief, given to Gemini), `--no-cache`, `--out dir`, `--json`. Exit **0** PASS · **1**
+Flags: `--skip-semantic` (no L3 model call), `--fps N` (proxy frame rate), `--instructions
+file.txt` (the original brief, given to the model), `--no-cache`, `--out dir`, `--json`.
+`npm --prefix tools/video-qa run qa:check` verifies the gateway key and model ids. Exit **0** PASS · **1**
 PASS_WITH_WARNINGS · **2** FAIL. Reports land in `<video dir>/_qa/<stem>/qa-report.{md,json}`
 with packets under `inspect/<issue-id>/`. Relative paths resolve from the directory you ran
 the command in; `.env` is read from there first, then from this pack's root. Full flag and
@@ -84,7 +86,7 @@ calibration gates, write the report. Each layer is a documented procedure, not a
 | edit-intent manifest (EDL / cut list / placements) | strongly recommended | L2 boundary checks, intentional-region gating, stable issue anchors |
 | source-time word timings (whisper of the SOURCE) | recommended | clipped-word + duplicate + caption checks |
 | source footage | optional | lets you transcribe the source yourself |
-| `GEMINI_API_KEY` in `.env` at repo root | optional | L3 — skip gracefully without it, never crash |
+| `AI_GATEWAY_API_KEY` in `.env` at repo root | optional | L3 — skip gracefully without it, never crash |
 
 Manifest format, EDL adaptation, and the source→output word-mapping algorithm:
 [references/manifest-and-edl.md](references/manifest-and-edl.md). No manifest at all →
@@ -104,15 +106,15 @@ Work in a scratch dir next to the video: `<video dir>/_qa/<video stem>/`.
    only) when no word timings exist — never blocks.
 3. **L3 — semantic watch+listen.** Follow
    [references/layer3-semantic.md](references/layer3-semantic.md). Build a 480p proxy with
-   audio intact, upload to Gemini, get schema-enforced JSON. Skip cleanly if no key. Its
+   audio intact, send it through the AI Gateway to a Gemini model, get schema-enforced JSON. Skip cleanly if no key. Its
    timestamps are ±2s — its job is to tell you WHERE to look, never to be trusted blindly.
 4. **Aggregate.** Merge issues; a semantic finding overlapping a deterministic finding
    (same event anchor, or time windows within 1s) is **corroborated** — raise confidence on
-   both. Gemini-only issues never exceed HIGH.
+   both. Model-only (L3) issues never exceed HIGH.
 5. **L4 — inspect before you touch anything.** For every CRITICAL/HIGH issue (top ~4),
    build an inspection packet per
    [references/layer4-inspection.md](references/layer4-inspection.md), look at it, and only
-   then decide. Deterministic windows: pad ±0.5s. Gemini windows: pad ±1.5s.
+   then decide. Deterministic windows: pad ±0.5s. L3 (model) windows: pad ±1.5s.
 6. **Report.** Write `qa-report.md` (+ `.json` if scripting) in the `_qa` dir: verdict,
    per-layer status, issues sorted severity-then-time, each with its stable anchor, evidence,
    and suggested fix. Packets live under `inspect/<issue-id>/`.
@@ -183,7 +185,8 @@ rounds**, then stop and escalate. Never loop on LOW or subjective issues.
   with `npx hyperframes`) or a local `whisper-cli` + ggml model. Only needed for L2
   transcription/probes when no word timings were provided.
 - **python3** for the helper scripts; **PIL (Pillow)** optional, only for waveform markers.
-- **GEMINI_API_KEY** in a `.env` at repo root for L3 (`GEMINI_QA_MODEL` optional, default
-  `gemini-flash-latest`). Missing key = L3 skipped, everything else runs.
-- **OPENAI_API_KEY** (optional) — cloud whisper-1 fallback when whisper.cpp is unavailable
-  (`VIDEO_QA_TRANSCRIBER=auto|whispercpp|openai|none`).
+- **AI_GATEWAY_API_KEY** in a `.env` at repo root — the Vercel AI Gateway key that serves
+  both L3 (`VIDEO_QA_MODEL`, default `google/gemini-3.6-flash`) and the cloud whisper fallback
+  (`VIDEO_QA_TRANSCRIBE_MODEL`, default `openai/whisper-1`,
+  `VIDEO_QA_TRANSCRIBER=auto|whispercpp|gateway|none`). Missing key = L3 skipped and
+  whisper.cpp only; everything else runs.
